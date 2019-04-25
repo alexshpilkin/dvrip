@@ -33,12 +33,15 @@ def test_Packet_decode():
 	assert Packet.decode(data).encode() == data
 
 def test_Packet_decode_invalid():
-	with raises(ValueError, match='invalid DVRIP magic'):
+	with raises(DVRIPError, match='invalid DVRIP magic'):
 		Packet.decode(bytes.fromhex('fe010000cdab0000fade0000'
 		                            '123456780500000068656c6c6f'))
-	with raises(ValueError, match='unknown DVRIP version'):
+	with raises(DVRIPError, match='unknown DVRIP version'):
 		Packet.decode(bytes.fromhex('ff020000cdab0000fade0000'
 		                            '123456780500000068656c6c6f'))
+	with raises(DVRIPError, match='DVRIP packet too long'):
+		Packet.decode(bytes.fromhex('ff010000cdab0000fade0000'
+		                            '123456780140000068656c6c6f'))
 
 class MockSequence(object):
 	def __init__(self, session, number):

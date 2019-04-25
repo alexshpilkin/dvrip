@@ -37,6 +37,10 @@ class mirrorproperty:
 		return delattr(obj, self.attr)
 
 
+class DVRIPError(OSError):
+	pass
+
+
 class Packet(object):
 	MAGIC    = 0xFF
 	VERSION  = 0x01
@@ -107,9 +111,11 @@ class Packet(object):
 		 type, length) = \
 		 	struct.unpack(bf)
 		if magic != cls.MAGIC:
-			raise ValueError('invalid DVRIP magic')
+			raise DVRIPError('invalid DVRIP magic')
 		if version != cls.VERSION:
-			raise ValueError('unknown DVRIP version')
+			raise DVRIPError('unknown DVRIP version')
+		if length > cls.MAXLEN:
+			raise DVRIPError('DVRIP packet too long')
 		payload = _read(fp, length)
 		return cls(session=session, number=number,
 		           fragments=_fragment0, fragment=_fragment1,
