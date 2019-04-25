@@ -132,6 +132,10 @@ def test_ClientLoginReply_frompackets():
 	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
 	        m.views == 0 and m.result == 100 and m.session == 0x3F)
 
+def test_ClientLoginReply_fromchunks_empty():
+	with raises(DVRIPError, match='no data in DVRIP packet'):
+		ClientLoginReply.fromchunks([])
+
 def test_ControlAcceptor_accept():
 	chunks = [b'\xFF\x01\x00\x00\x3F\x00\x00\x00\x00\x00',
 	          b'\x00\x00\x00\x00\xe9\x03\x96\x00\x00\x00'
@@ -144,6 +148,86 @@ def test_ControlAcceptor_accept():
 	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
 	        m.views == 0 and m.result == 100 and m.session == 0x3F)
+
+def test_ControlAcceptor_accept_chunked():
+	p = Packet(0x3F, 0, 1001,
+	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
+	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
+	           fragments=2, fragment=0)
+	q = Packet(0x3F, 0, 1001,
+	           b'"ExtraChannel" : 0, "Ret" : 100, '
+	           b'"SessionID" : "0x0000003F" }\x0A\x00',
+	           fragments=2, fragment=1)
+
+	acceptor = ClientLogin.acceptor()
+	() = acceptor.accept(p)
+	(n, m), = acceptor.accept(q)
+	assert n == 0
+	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
+	        m.views == 0 and m.result == 100 and m.session == 0x3F)
+
+def test_ControlAcceptor_accept_wrong_type():
+	p = Packet(0x3F, 0, 1002,
+	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
+	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
+	           fragments=2, fragment=0)
+
+	acceptor = ClientLogin.acceptor()
+	assert acceptor.accept(p) is None
+
+def test_ControlAcceptor_accept_wrong_number():
+	p = Packet(0x3F, 0, 1001,
+	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
+	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
+	           fragments=2, fragment=0)
+	q = Packet(0x3F, 57, 1001,
+	           b'"ExtraChannel" : 0, "Ret" : 100, '
+	           b'"SessionID" : "0x0000003F" }\x0A\x00',
+	           fragments=2, fragment=1)
+
+	acceptor = ClientLogin.acceptor()
+	() = acceptor.accept(p)
+	assert acceptor.accept(q) is None
+
+def test_ControlAcceptor_accept_invalid_fragments():
+	p = Packet(0x3F, 0, 1001,
+	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
+	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
+	           fragments=2, fragment=0)
+	q = Packet(0x3F, 0, 1001,
+	           b'"ExtraChannel" : 0, "Ret" : 100, '
+	           b'"SessionID" : "0x0000003F" }\x0A\x00',
+	           fragments=3, fragment=1)
+
+	acceptor = ClientLogin.acceptor()
+	() = acceptor.accept(p)
+	with raises(DVRIPError, match='conflicting fragment counts'):
+		acceptor.accept(q)
+
+def test_ControlAcceptor_accept_invalid_overrun():
+	p = Packet(0x3F, 0, 1001,
+	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
+	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
+	           fragments=2, fragment=4)
+
+	acceptor = ClientLogin.acceptor()
+	with raises(DVRIPError, match='invalid fragment number'):
+		acceptor.accept(p)
+
+def test_ControlAcceptor_accept_invalid_overlap():
+	p = Packet(0x3F, 0, 1001,
+	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
+	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
+	           fragments=2, fragment=0)
+	q = Packet(0x3F, 0, 1001,
+	           b'"ExtraChannel" : 0, "Ret" : 100, '
+	           b'"SessionID" : "0x0000003F" }\x0A\x00',
+	           fragments=2, fragment=0)
+
+	acceptor = ClientLogin.acceptor()
+	() = acceptor.accept(p)
+	with raises(DVRIPError, match='overlapping fragments'):
+		acceptor.accept(q)
 
 def test_ClientLogout_topackets():
 	p, = ClientLogout('admin', 0x5F).topackets(MockSession(session=0x5F))
