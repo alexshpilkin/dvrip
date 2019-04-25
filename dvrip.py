@@ -31,25 +31,16 @@ class AbstractPacket(object):
 	def size(self):
 		return self.__STRUCT.size
 
-	def encodeto(self, buffer, offset=0):
+	def pack_into(self, buffer, offset=0):
 		struct = self.__STRUCT
 		struct.pack_into(buffer, offset, self.MAGIC, self.VERSION,
 		                 self.session, self.number)
 		return memoryview(buffer)[offset+struct.size:]
 
-	def encode(self):
+	def pack(self):
 		buf = bytearray(self.size)
-		self.encodeto(buf)
+		self.pack_into(buf)
 		return buf
-
-	def chunks(self):
-		return (self.encode(),)
-
-	def dump(self, fp):
-		for chunk in self.chunks():
-			chunk = memoryview(chunk)
-			while chunk:
-				chunk = chunk[fp.write(chunk):]
 
 
 class AbstractControlPacket(AbstractPacket):
@@ -74,20 +65,20 @@ class AbstractControlPacket(AbstractPacket):
 	def size(self):
 		return super().size + self.__STRUCT.size + self.length
 
-	def encodeto(self, buffer, offset=0):
-		buffer = super().encodeto(buffer, offset)
+	def pack_into(self, buffer, offset=0):
+		buffer = super().pack_into(buffer, offset)
 		struct = self.__STRUCT
 		struct.pack_into(buffer, 0, self.fragments, self.fragment,
 		                 self.type, self.length)
 		return buffer[struct.size:]
 
 
-class UnknownControlPacket(AbstractControlPacket):
+class ControlPacket(AbstractControlPacket):
 	__slots__ = ('payload',)
 	def __init__(self, payload=None, *args, other=None, **named):
 		super().__init__(*args, other=other, **named)
 
-		if isinstance(other, UnknownControlPacket):
+		if isinstance(other, ControlPacket):
 			assert payload is None
 			payload = other.payload
 		self.payload = payload
@@ -96,8 +87,8 @@ class UnknownControlPacket(AbstractControlPacket):
 	def length(self):
 		return len(self.payload)
 
-	def encodeto(self, buffer, offset=0):
-		buffer  = super().encodeto(buffer, offset)
+	def pack_into(self, buffer, offset=0):
+		buffer  = super().pack_into(buffer, offset)
 		payload = self.payload
 		buffer[:len(payload)] = payload
 		return buffer[len(payload):]
