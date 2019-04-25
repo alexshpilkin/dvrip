@@ -1,12 +1,14 @@
 from hashlib import md5
 from io      import BytesIO
+from json    import dumps
 from string  import ascii_lowercase, ascii_uppercase, digits
 from struct  import Struct
 from sys     import intern
 
 
 def _read(fp, length):
-	data = buf = bytearray(length)
+	data = bytearray(length)
+	buf  = memoryview(data)
 	while buf:
 		buf = buf[fp.readinto(buf):]
 	return data
@@ -38,6 +40,7 @@ class mirrorproperty:
 class Packet(object):
 	MAGIC    = 0xFF
 	VERSION  = 0x01
+	MAXLEN   = 16384
 	__STRUCT = Struct('<BBxxIIBBHI')
 
 	__slots__ = ('session', 'number', '_fragment0', '_fragment1', 'type',
@@ -81,6 +84,7 @@ class Packet(object):
 		#assert self.fragments != 1
 		#assert (self.fragment < self.fragments or
 		#        self.fragment == self.fragments == 0)
+		assert len(self.payload) <= self.MAXLEN
 
 		struct  = self.__STRUCT
 		payload = self.payload
@@ -99,9 +103,9 @@ class Packet(object):
 	def load(cls, fp):
 		struct = cls.__STRUCT
 		bf = _read(fp, struct.size)
-		print(bf)
 		(magic, version, session, number, _fragment0, _fragment1,
-		 type, length) = struct.unpack(bf)
+		 type, length) = \
+		 	struct.unpack(bf)
 		if magic != cls.MAGIC:
 			raise ValueError('invalid DVRIP magic')
 		if version != cls.VERSION:
@@ -117,3 +121,43 @@ class Packet(object):
 		packet = cls.load(buf)
 		assert buf.tell() == len(buffer)
 		return packet
+
+
+class ControlMessage(object):
+	__slots__ = ()
+
+	def topackets(self, session):
+		chunks   = self.chunks()
+		length   = len(chunks)
+		sequence = session.sequence()
+		if length == 1:
+			chunk = next(iter(chunks))
+			yield sequence.packet(self.type, chunk, fragments=0,
+			                      fragment=0)
+		else:
+			for i, chunk in enumerate(chunks):
+				yield sequence.packet(self.type, chunk,
+				                      fragments=length,
+				                      fragment=i)
+
+	def chunks(self):
+		size = Packet.MAXLEN
+		json = dumps(self.for_json()).encode('ascii') + b'\x0A\x00'
+		return [json[i:i+size] for i in range(0, len(json), size)]
+
+
+class ClientLogin(ControlMessage):
+	type = 1000
+
+	__slots__ = ('username', 'password', 'service')
+	def __init__(self, username, password, service='DVRIP-Web'):
+		self.username = username
+		self.password = password
+		self.service  = service
+
+	def for_json(self):
+		return {'LoginType':   self.service,
+		        'UserName':    self.username,
+		        'PassWord':    md5crypt(self.password.encode('utf-8'))
+		                               .decode('ascii'),
+		        'EncryptType': 'MD5'}
