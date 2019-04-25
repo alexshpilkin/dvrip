@@ -1,8 +1,20 @@
 from hashlib import md5
+from io      import BytesIO
 from string  import ascii_lowercase, ascii_uppercase, digits
 from struct  import Struct
 from sys     import intern
 
+
+def _read(fp, length):
+	data = buf = bytearray(length)
+	while buf:
+		buf = buf[fp.readinto(buf):]
+	return data
+
+def _write(fp, data):
+	buf = memoryview(data)
+	while buf:
+		buf = buf[fp.write(buf):]
 
 MD5MAGIC = (digits + ascii_uppercase + ascii_lowercase).encode('ascii')
 def md5crypt(password):
@@ -59,7 +71,7 @@ class Packet(object):
 	def size(self):
 		return self.__STRUCT.size + self.length
 
-	def pack_into(self, buffer, offset=0):
+	def dump(self, fp):
 		assert (self.session is not None and
 		        self.number is not None and
 		        self._fragment0 is not None and
@@ -72,15 +84,36 @@ class Packet(object):
 
 		struct  = self.__STRUCT
 		payload = self.payload
-		buffer  = memoryview(buffer)[offset:]
-		struct.pack_into(buffer, offset, self.MAGIC, self.VERSION,
-		                 self.session, self.number, self._fragment0,
-		                 self._fragment1, self.type, self.length)
-		buffer = buffer[struct.size:]
-		buffer[:len(payload)] = payload
+		_write(fp, struct.pack(self.MAGIC, self.VERSION, self.session,
+		                       self.number, self._fragment0,
+		                       self._fragment1, self.type,
+		                       len(payload)))
+		_write(fp, payload)
 
-	def pack(self):
-		buf = bytearray(self.size)
-		self.pack_into(buf)
-		return buf
+	def encode(self):
+		buf = BytesIO()
+		self.dump(buf)
+		return buf.getvalue()
 
+	@classmethod
+	def load(cls, fp):
+		struct = cls.__STRUCT
+		bf = _read(fp, struct.size)
+		print(bf)
+		(magic, version, session, number, _fragment0, _fragment1,
+		 type, length) = struct.unpack(bf)
+		if magic != cls.MAGIC:
+			raise ValueError('invalid DVRIP magic')
+		if version != cls.VERSION:
+			raise ValueError('unknown DVRIP version')
+		payload = _read(fp, length)
+		return cls(session=session, number=number,
+		           fragments=_fragment0, fragment=_fragment1,
+		           type=type, payload=payload)
+
+	@classmethod
+	def decode(cls, buffer):
+		buf = BytesIO(buffer)
+		packet = cls.load(buf)
+		assert buf.tell() == len(buffer)
+		return packet
