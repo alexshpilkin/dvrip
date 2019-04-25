@@ -1,10 +1,20 @@
 from hashlib import md5
-from io      import BytesIO
-from json    import dumps
-from string  import ascii_lowercase, ascii_uppercase, digits
+from inspect import currentframe
+from io      import BytesIO, RawIOBase
+from json    import dumps, load
+from string  import ascii_lowercase, ascii_uppercase, digits, hexdigits
 from struct  import Struct
 from sys     import intern
 
+
+def init(type, obj=None):
+	frame = currentframe().f_back
+	for attr in type.__slots__:
+		setattr(obj, attr, frame.f_locals[attr])
+
+def pun(attrs):
+	frame = currentframe().f_back
+	return {attr: frame.f_locals[attr] for attr in attrs}
 
 def _read(fp, length):
 	data = bytearray(length)
@@ -28,7 +38,7 @@ def md5crypt(password):
 class mirrorproperty:
 	__slots__ = ('attr',)
 	def __init__(self, attr):
-		self.attr = attr
+		init(mirrorproperty, self)
 	def __get__(self, obj, type=None):
 		return getattr(obj, self.attr)
 	def __set__(self, obj, value):
@@ -36,9 +46,71 @@ class mirrorproperty:
 	def __delete__(self, obj):
 		return delattr(obj, self.attr)
 
+class ChunkReader(RawIOBase):
+	def __init__(self, chunks):
+		self.chunks = list(chunks)
+		self.chunks.reverse()
+	def readable(self):
+		return True
+	def readinto(self, buffer):
+		if not self.chunks:
+			return 0
+		chunk = self.chunks[-1]
+		assert chunk
+		buffer[:len(chunk)] = chunk[:len(buffer)]
+		if len(chunk) > len(buffer):
+			self.chunks[-1] = chunk[len(buffer):]
+		else:
+			self.chunks.pop()
+		return len(chunk)
+
 
 class DVRIPError(OSError):
 	pass
+
+def checkbool(json, description):
+	if not isinstance(json, bool):
+		raise DVRIPError('not a boolean in {}'.format(description))
+	return json
+
+def checkint(json, description):
+	if not isinstance(json, int):
+		raise DVRIPError('not an integer in {}'.format(description))
+	return json
+
+def checkstr(json, description):
+	if not isinstance(json, str):
+		raise DVRIPError('not a string in {}'.format(description))
+	return json
+
+def checkdict(json, description):
+	if not isinstance(json, dict):
+		raise DVRIPError('not a dictionary in {}'.format(description))
+	return json
+
+def checkempty(json, description):
+	assert isinstance(json, dict)
+	if json:
+		raise DVRIPError('extra keys in {}'.format(description))
+
+def popkey(json, key, description):
+	assert isinstance(json, dict)
+	value = json.pop(key, Ellipsis)
+	if value is Ellipsis:
+		raise DVRIPError('{} missing'.format(description))
+	return value
+
+def popint(json, key, description):
+	return checkint(popkey(json, key, description), description)
+
+def popstr(json, key, description):
+	return checkstr(popkey(json, key, description), description)
+
+def pophex(json, key, description):
+	value = popstr(json, key, description)
+	if value[:2] != '0x' or not all(c in hexdigits for c in value[2:]):
+		raise DVRIPError('invalid hex string in {}'.format(description))
+	return int(value[2:], 16)
 
 
 class Packet(object):
@@ -49,6 +121,7 @@ class Packet(object):
 
 	__slots__ = ('session', 'number', '_fragment0', '_fragment1', 'type',
 	             'payload')
+
 	def __init__(self, session=None, number=None, type=None, payload=None,
 	             *, fragments=None, channel=None, fragment=None, end=None):
 		super().__init__()
@@ -58,12 +131,7 @@ class Packet(object):
 		_fragment0 = fragments if fragments is not None else channel
 		_fragment1 = fragment  if fragment  is not None else end
 
-		self.session    = session
-		self.number     = number
-		self._fragment0 = _fragment0
-		self._fragment1 = _fragment1
-		self.type       = type
-		self.payload    = payload
+		init(Packet, self)
 
 	fragments = mirrorproperty('_fragment0')
 	channel   = mirrorproperty('_fragment0')
@@ -106,10 +174,9 @@ class Packet(object):
 	@classmethod
 	def load(cls, fp):
 		struct = cls.__STRUCT
-		bf = _read(fp, struct.size)
 		(magic, version, session, number, _fragment0, _fragment1,
 		 type, length) = \
-		 	struct.unpack(bf)
+		 	struct.unpack(_read(fp, struct.size))
 		if magic != cls.MAGIC:
 			raise DVRIPError('invalid DVRIP magic')
 		if version != cls.VERSION:
@@ -151,15 +218,68 @@ class ControlMessage(object):
 		json = dumps(self.for_json()).encode('ascii') + b'\x0A\x00'
 		return [json[i:i+size] for i in range(0, len(json), size)]
 
+	@classmethod
+	def frompackets(cls, packets):
+		return cls.fromchunks(p.payload for p in packets if p.payload)
+
+	@classmethod
+	def fromchunks(cls, chunks):
+		chunks = list(chunks)
+		if not chunks:
+			raise DVRIPError('no data in DVRIP packet')
+		chunks[-1] = chunks[-1].rstrip(b'\x00')
+		return cls.json_to(load(ChunkReader(chunks),
+		                        encoding='ascii'))
+
+
+class ControlAcceptor(object):
+	__slots__ = ('cls', 'number', 'count', 'limit', 'packets')
+
+	def __init__(self, cls):
+		number  = None
+		count   = 0
+		limit   = 0
+		packets = None
+		init(ControlAcceptor, self)
+
+	def accept(self, packet):
+		# FIXME No idea if this interpretation of sequence
+		# numbers is correct.
+
+		if packet.type != self.cls.type:
+			return None
+		if self.number is None:
+			self.number  = packet.number
+			self.limit   = max(packet.fragments, 1)
+			self.packets = [None] * self.limit
+		if packet.number != self.number:
+			return None
+		if max(packet.fragments, 1) != self.limit:
+			raise DVRIPError('conflicting fragment counts')
+		if packet.fragment >= self.limit:
+			raise DVRIPError('invalid fragment number')
+		if self.packets[packet.fragment] is not None:
+			raise DVRIPError('overlapping fragments')
+
+		assert self.count < self.limit
+		self.packets[packet.fragment] = packet
+		self.count += 1
+		if self.count == self.limit:
+			return (self.cls.frompackets(self.packets),)
+		else:
+			return ()
+
 
 class ClientLogin(ControlMessage):
 	type = 1000
 
 	__slots__ = ('username', 'password', 'service')
 	def __init__(self, username, password, service='DVRIP-Web'):
-		self.username = username
-		self.password = password
-		self.service  = service
+		init(ClientLogin, self)
+
+	@classmethod
+	def acceptor(self):
+		return ControlAcceptor(ClientLoginReply)
 
 	def for_json(self):
 		return {'LoginType':   self.service,
@@ -167,3 +287,27 @@ class ClientLogin(ControlMessage):
 		        'PassWord':    md5crypt(self.password.encode('utf-8'))
 		                               .decode('ascii'),
 		        'EncryptType': 'MD5'}
+
+
+class ClientLoginReply(ControlMessage):
+	type = 1001
+
+	__slots__ = ('result', 'session', 'timeout', 'channels', 'views',
+	             'chassis', 'aes')
+	def __init__(self, result, session, timeout, channels, views, chassis,
+	             aes):
+		init(ClientLoginReply, self)
+
+	@classmethod
+	def json_to(cls, json):
+		checkdict(json, 'client login reply')
+		result   = popint(json, 'Ret',           'result code')
+		session  = pophex(json, 'SessionID',     'session number')
+		timeout  = popint(json, 'AliveInterval', 'timeout value')
+		channels = popint(json, 'ChannelNum',    'channel count')
+		views    = popint(json, 'ExtraChannel',  'view count')
+		chassis  = popstr(json, 'DeviceType ',   'chassis type')
+		aes      = checkbool(json.pop('DataUseAES', False), 'AES flag')
+		checkempty(json, 'client login reply')
+
+		return cls(**pun(ClientLoginReply.__slots__))

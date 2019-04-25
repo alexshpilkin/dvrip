@@ -20,6 +20,11 @@ def test_mirrorproperty():
 	foo.x = 'goodbye'
 	assert foo.y == 'goodbye'
 
+def test_ChunkReader():
+	r = ChunkReader([b'hel', b'lo'])
+	assert r.readable()
+	assert r.readall() == b'hello'
+
 def test_Packet_encode():
 	p = Packet(0xabcd, 0xdefa, 0x7856, b'hello',
 	           fragments=0x12, fragment=0x34)
@@ -84,3 +89,24 @@ def test_ClientLogin_topackets_chunked():
 	                      b'"PassWord": "tlJwpbo6", '
 	                      b'"EncryptType": "MD5"}'
 	                      b'\x0A\x00')
+
+def test_ClientLoginReply_frompackets():
+	chunks = [b'\xFF\x01\x00\x00\x3F\x00\x00\x00\x00\x00',
+	          b'\x00\x00\x00\x00\xe9\x03\x96\x00\x00\x00'
+	          b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
+	          b'"DataUseAES" : false, "DeviceType " : "HVR", ',
+	          b'"ExtraChannel" : 0, "Ret" : 100, '
+	          b'"SessionID" : "0x0000003F" }\x0A\x00']
+	m = ClientLoginReply.frompackets([Packet.load(ChunkReader(chunks))])
+	assert m.timeout == 21
+
+def test_ControlAcceptor_accept():
+	chunks = [b'\xFF\x01\x00\x00\x3F\x00\x00\x00\x00\x00',
+	          b'\x00\x00\x00\x00\xe9\x03\x96\x00\x00\x00'
+	          b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
+	          b'"DataUseAES" : false, "DeviceType " : "HVR", ',
+	          b'"ExtraChannel" : 0, "Ret" : 100, '
+	          b'"SessionID" : "0x0000003F" }\x0A\x00']
+	acceptor = ClientLogin.acceptor()
+	m, = acceptor.accept(Packet.load(ChunkReader(chunks)))
+	assert m.timeout == 21
