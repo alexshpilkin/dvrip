@@ -13,7 +13,7 @@ for q in req.topackets(MockSession()):
 fp.flush()
 p = Packet.load(fp)
 (n, rep), = req.acceptor().accept(p)
-print(rep.result, SESSION.format(rep.session))
+print(rep.status, SESSION.format(rep.session))
 
 req2 = ClientLogout(argv[2], rep.session)
 for q2 in req2.topackets(MockSession(session=rep.session, number=0xfaa)):
@@ -21,4 +21,4 @@ for q2 in req2.topackets(MockSession(session=rep.session, number=0xfaa)):
 fp.flush()
 p2 = Packet.load(fp)
 (n2, rep2), = req2.acceptor().accept(p2)
-print(rep2.result, SESSION.format(rep2.session))
+print(rep2.status, SESSION.format(rep2.session))

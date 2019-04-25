@@ -78,6 +78,23 @@ def test_Packet_decode_invalid():
 		Packet.decode(bytes.fromhex('ff010000cdab0000fade0000'
 		                            '123456780140000068656c6c6f'))
 
+def test_Status_bool():
+	assert Status(100)
+	assert not Status(101)
+
+def test_Status_for_json():
+	assert Status(100).for_json() == 100
+	assert Status(101).for_json() == 101
+
+def test_Status_json_to():
+	assert Status.json_to(100) == Status(100)
+	with raises(DVRIPError, match="'SPAM' is not a valid DVRIP status"):
+		Status.json_to('SPAM')
+
+def test_Status_repr():
+	assert repr(Status.OK) == 'Status(100)'
+	assert repr(Status.ERROR) == 'Status(101)'
+
 class MockSequence(object):
 	def __init__(self, session, number):
 		self.session = session
@@ -130,7 +147,7 @@ def test_ClientLoginReply_frompackets():
 	n, m = ClientLoginReply.frompackets([Packet.load(ChunkReader(chunks))])
 	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
-	        m.views == 0 and m.result == 100 and m.session == 0x3F)
+	        m.views == 0 and m.status == Status(100) and m.session == 0x3F)
 
 def test_ClientLoginReply_fromchunks_empty():
 	with raises(DVRIPError, match='no data in DVRIP packet'):
@@ -147,7 +164,7 @@ def test_ControlAcceptor_accept():
 	(n, m), = acceptor.accept(Packet.load(ChunkReader(chunks)))
 	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
-	        m.views == 0 and m.result == 100 and m.session == 0x3F)
+	        m.views == 0 and m.status == Status(100) and m.session == 0x3F)
 
 def test_ControlAcceptor_accept_chunked():
 	p = Packet(0x3F, 0, 1001,
@@ -164,7 +181,7 @@ def test_ControlAcceptor_accept_chunked():
 	(n, m), = acceptor.accept(q)
 	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
-	        m.views == 0 and m.result == 100 and m.session == 0x3F)
+	        m.views == 0 and m.status == Status(100) and m.session == 0x3F)
 
 def test_ControlAcceptor_accept_wrong_type():
 	p = Packet(0x3F, 0, 1002,
@@ -244,4 +261,5 @@ def test_ClientLogoutReply_accept():
 	acceptor = ClientLogout.acceptor()
 	(n, m), = acceptor.accept(Packet.decode(data))
 	assert n == 0
-	assert (m.username == "" and m.result == 100 and m.session == 0x59)
+	assert (m.username == "" and m.status == Status(100) and
+	        m.session == 0x59)

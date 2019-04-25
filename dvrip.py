@@ -1,3 +1,4 @@
+from enum    import Enum, unique
 from hashlib import md5
 from inspect import currentframe
 from io      import BytesIO, RawIOBase
@@ -67,7 +68,7 @@ class ChunkReader(RawIOBase):
 		return len(chunk)
 
 
-class DVRIPError(OSError):
+class DVRIPError(ValueError):
 	pass
 
 def checkbool(json, description):
@@ -202,6 +203,92 @@ class Packet(object):
 		return packet
 
 
+@unique
+class Status(Enum):
+	__slots__ = ('code', 'success', 'message', '_value_')
+
+	def __new__(cls, code, success, message):
+		self = object.__new__(cls)
+		self.code    = code
+		self.success = success
+		self.message = message
+		self._value_ = code
+		return self
+
+	def __bool__(self):
+		return self.success
+
+	def for_json(self):
+		return self.code
+
+	@classmethod
+	def json_to(cls, json):
+		try:
+			return cls(json)
+		except ValueError:
+			raise DVRIPError('{!r} is not a valid DVRIP status'
+			                 .format(json))
+
+	def __repr__(self):
+		return '{}({})'.format(type(self).__qualname__, self._value_)
+
+	OK       = (100, True,  'OK')
+	ERROR    = (101, False, 'Unknown error')
+	VERSION  = (102, False, 'Invalid version')
+	REQUEST  = (103, False, 'Invalid request')  # FIXME type?
+	EXLOGIN  = (104, False, 'Already logged in')
+	NOLOGIN  = (105, False, 'Not logged in')
+	CREDS    = (106, False, 'Wrong username or password')
+	ACCESS   = (107, False, 'Access denied')
+	TIMEOUT  = (108, False, 'Timed out')
+	FILE     = (109, False, 'File not found')
+	SRCHCOMP = (110, True,  'Complete search results')
+	SRCHPART = (111, True,  'Partial search results')
+	EXUSER   = (112, False, 'User already exists')
+	NOUSER   = (113, False, 'User does not exist')
+	EXGROUP  = (114, False, 'Group already exists')
+	NOGROUP  = (115, False, 'Group does not exist')
+	MESSAGE  = (117, False, 'Invalid message')   # FIXME JSON?
+	PTZPROTO = (118, False, 'PTZ protocol not set')
+	SRCHNONE = (119, True,  'No search results')
+	DISABLED = (120, False, 'Disabled')  # FIXME 配置为启用
+	CONNECT  = (121, False, 'Channel not connected')
+	REBOOT   = (150, True,  'Reboot required')
+	FIXME202 = (202, False, 'FIXME Error 202')  # FIXME 用户未登录
+	PASSWORD = (203, False, 'Wrong password')
+	USERNAME = (204, False, 'Wrong username') 
+	LOCKOUT  = (205, False, 'Locked out')
+	BANNED   = (206, False, 'Banned')
+	CONFLICT = (207, False, 'Already logged in')
+	INPUT    = (208, False, 'Illegal value')  # FIXME of field?
+	FIXME209 = (209, False, 'FIXME Error 209')  # FIXME 索引重复如要增加的用户已经存在等
+	FIXME210 = (210, False, 'FIXME Error 210')  # FIXME 不存在对象, 用于查询时
+	OBJECT   = (211, False, 'Object does not exist')
+	ACCOUNT  = (212, False, 'Account in use')
+	SUBSET   = (213, False, 'Subset larger than superset')
+	PASSCHAR = (214, False, 'Illegal characters in password')  # FIXME 密码不合法
+	PASSMTCH = (215, False, 'Passwords do not match')
+	USERRESV = (216, False, 'Username reserved')
+	COMMAND  = (502, False, 'Illegal command')  # FIXME 命令不合法
+	INTERON  = (503, True,  'Intercom turned on')
+	INTEROFF = (504, True,  'Intercom turned off')  # FIXME 对讲未开启
+	OKUPGR   = (511, True,  'Upgrade started')
+	NOUPGR   = (512, False, 'Upgrade not started')
+	UPGRDATA = (513, False, 'Invalid upgrade data')
+	OKUPGRD  = (514, True,  'Upgrade successful')
+	NOUPGRD  = (515, False, 'Upgrade failed')
+	NORESET  = (521, False, 'Reset failed')
+	OKRESET  = (522, True,  'Reset successful--reboot required')  # FIXME 需要重启设备
+	INVRESET = (523, False, 'Reset data invalid')
+	OKIMPORT = (602, True,  'Import successful--restart required')  # FIXME 需要重启应用程序 (et seqq)
+	REIMPORT = (603, True,  'Import successful--reboot required')
+	WRITING  = (604, False, 'Configuration write failed')
+	FEATURE  = (605, False, 'Unsupported feature in configuration')
+	READING  = (606, False, 'Configuration read failed')
+	NOIMPORT = (607, False, 'Configuration not found')
+	SYNTAX   = (608, False, 'Illegal configuration syntax')
+
+
 class ControlMessage(object):
 	__slots__ = ()
 
@@ -281,6 +368,7 @@ class ClientLogin(ControlMessage):
 	type = 1000
 
 	__slots__ = ('username', 'password', 'service')
+
 	def __init__(self, username, password, service='DVRIP-Web'):
 		init(ClientLogin, self)
 
@@ -299,17 +387,17 @@ class ClientLogin(ControlMessage):
 class ClientLoginReply(ControlMessage):
 	type = 1001
 
-	__slots__ = ('result', 'session', 'timeout', 'channels', 'views',
+	__slots__ = ('status', 'session', 'timeout', 'channels', 'views',
 	             'chassis', 'aes')
 
-	def __init__(self, result, session, timeout, channels, views, chassis,
+	def __init__(self, status, session, timeout, channels, views, chassis,
 	             aes):
 		init(ClientLoginReply, self)
 
 	@classmethod
 	def json_to(cls, json):
 		checkdict(json, 'client login reply')
-		result   = popint(json, 'Ret',           'result code')
+		status   = Status.json_to(popint(json, 'Ret', 'status code'))
 		session  = pophex(json, 'SessionID',     'session number')
 		timeout  = popint(json, 'AliveInterval', 'timeout value')
 		channels = popint(json, 'ChannelNum',    'channel count')
@@ -343,15 +431,15 @@ class ClientLogoutReply(ControlMessage):
 	type = 1003
 
 	# FIXME 'username' unused?
-	__slots__ = ('result', 'username', 'session')
+	__slots__ = ('status', 'username', 'session')
 
-	def __init__(self, result, username, session):
+	def __init__(self, status, username, session):
 		init(ClientLogoutReply, self)
 
 	@classmethod
 	def json_to(cls, json):
 		checkdict(json, 'client logout reply')
-		result   = popint(json, 'Ret',       'result code')
+		status   = Status.json_to(popint(json, 'Ret', 'status code'))
 		username = popstr(json, 'Name',      'username')
 		session  = pophex(json, 'SessionID', 'session number')
 		checkempty(json, 'client logout reply')
