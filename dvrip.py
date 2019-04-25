@@ -11,93 +11,76 @@ def md5crypt(password):
 	             for a, b in zip(mdfive[0::2], mdfive[1::2]))[:8]
 
 
-class AbstractPacket(object):
+class mirrorproperty:
+	__slots__ = ('attr',)
+	def __init__(self, attr):
+		self.attr = attr
+	def __get__(self, obj, type=None):
+		return getattr(obj, self.attr)
+	def __set__(self, obj, value):
+		return setattr(obj, self.attr, value)
+	def __delete__(self, obj):
+		return delattr(obj, self.attr)
+
+
+class Packet(object):
 	MAGIC    = 0xFF
 	VERSION  = 0x01
-	__STRUCT = Struct('<BBxxII')
+	__STRUCT = Struct('<BBxxIIBBHI')
 
-	__slots__ = ('session', 'number')
-	def __init__(self, number=None, session=None, *, other=None):
+	__slots__ = ('session', 'number', '_fragment0', '_fragment1', 'type',
+	             'payload')
+	def __init__(self, session=None, number=None, type=None, payload=None,
+	             *, fragments=None, channel=None, fragment=None, end=None):
 		super().__init__()
 
-		if isinstance(other, AbstractPacket):
-			assert number is None and session is None
-			number  = other.number
-			session = other.session
-		self.session = session
-		self.number  = number
+		assert (fragments is None and fragment is None or
+		        channel   is None and end      is None)
+		_fragment0 = fragments if fragments is not None else channel
+		_fragment1 = fragment  if fragment  is not None else end
+
+		self.session    = session
+		self.number     = number
+		self._fragment0 = _fragment0
+		self._fragment1 = _fragment1
+		self.type       = type
+		self.payload    = payload
+
+	fragments = mirrorproperty('_fragment0')
+	channel   = mirrorproperty('_fragment0')
+	fragment  = mirrorproperty('_fragment1')
+	end       = mirrorproperty('_fragment1')
+
+	@property
+	def length(self):
+		return len(self.payload)
 
 	@property
 	def size(self):
-		return self.__STRUCT.size
+		return self.__STRUCT.size + self.length
 
 	def pack_into(self, buffer, offset=0):
-		assert self.session is not None and self.number is not None
+		assert (self.session is not None and
+		        self.number is not None and
+		        self._fragment0 is not None and
+		        self._fragment1 is not None and
+		        self.type is not None)
+		# FIXME Only for control packets
+		#assert self.fragments != 1
+		#assert (self.fragment < self.fragments or
+		#        self.fragment == self.fragments == 0)
 
-		struct = self.__STRUCT
+		struct  = self.__STRUCT
+		payload = self.payload
+		buffer  = memoryview(buffer)[offset:]
 		struct.pack_into(buffer, offset, self.MAGIC, self.VERSION,
-		                 self.session, self.number)
-		return memoryview(buffer)[offset+struct.size:]
+		                 self.session, self.number, self._fragment0,
+		                 self._fragment1, self.type, self.length)
+		buffer = buffer[struct.size:]
+		buffer[:len(payload)] = payload
 
 	def pack(self):
 		buf = bytearray(self.size)
 		self.pack_into(buf)
 		return buf
 
-
-class AbstractControlPacket(AbstractPacket):
-	__STRUCT = Struct('<BBHI')
-
-	__slots__ = ('fragments', 'fragment', 'type', 'length')
-	def __init__(self, type=None, fragment=None, fragments=None,
-	             *args, other=None, **named):
-		super().__init__(*args, other=other, **named)
-
-		if isinstance(other, AbstractControlPacket):
-			assert (type is None and fragment is None and
-			        fragments is None)
-			type      = other.type
-			fragment  = other.fragment
-			fragments = other.fragments
-		self.fragments = fragments
-		self.fragment  = fragment
-		self.type      = type
-
-	@property
-	def size(self):
-		return super().size + self.__STRUCT.size + self.length
-
-	def pack_into(self, buffer, offset=0):
-		assert (self.fragment is not None and
-		        self.fragments is not None and
-		        self.type is not None)
-		assert self.fragments != 1
-		assert (self.fragment < self.fragments or
-		        self.fragment == self.fragments == 0)
-
-		buffer = super().pack_into(buffer, offset)
-		struct = self.__STRUCT
-		struct.pack_into(buffer, 0, self.fragments, self.fragment,
-		                 self.type, self.length)
-		return buffer[struct.size:]
-
-
-class ControlPacket(AbstractControlPacket):
-	__slots__ = ('payload',)
-	def __init__(self, payload=None, *args, other=None, **named):
-		super().__init__(*args, other=other, **named)
-
-		if isinstance(other, ControlPacket):
-			assert payload is None
-			payload = other.payload
-		self.payload = payload
-
-	@property
-	def length(self):
-		return len(self.payload)
-
-	def pack_into(self, buffer, offset=0):
-		buffer  = super().pack_into(buffer, offset)
-		payload = self.payload
-		buffer[:len(payload)] = payload
-		return buffer[len(payload):]
