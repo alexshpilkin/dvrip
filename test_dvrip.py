@@ -97,8 +97,10 @@ def test_ClientLoginReply_frompackets():
 	          b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	          b'"ExtraChannel" : 0, "Ret" : 100, '
 	          b'"SessionID" : "0x0000003F" }\x0A\x00']
-	m = ClientLoginReply.frompackets([Packet.load(ChunkReader(chunks))])
-	assert m.timeout == 21
+	n, m = ClientLoginReply.frompackets([Packet.load(ChunkReader(chunks))])
+	assert n == 0
+	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
+	        m.views == 0 and m.result == 100 and m.session == 0x3F)
 
 def test_ControlAcceptor_accept():
 	chunks = [b'\xFF\x01\x00\x00\x3F\x00\x00\x00\x00\x00',
@@ -108,5 +110,24 @@ def test_ControlAcceptor_accept():
 	          b'"ExtraChannel" : 0, "Ret" : 100, '
 	          b'"SessionID" : "0x0000003F" }\x0A\x00']
 	acceptor = ClientLogin.acceptor()
-	m, = acceptor.accept(Packet.load(ChunkReader(chunks)))
-	assert m.timeout == 21
+	(n, m), = acceptor.accept(Packet.load(ChunkReader(chunks)))
+	assert n == 0
+	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
+	        m.views == 0 and m.result == 100 and m.session == 0x3F)
+
+def test_ClientLogout_topackets():
+	p, = ClientLogout('admin', 0x5F).topackets(MockSession(session=0x5F))
+	assert p.encode() == (b'\xFF\x01\x00\x00\x5F\x00\x00\x00\x00\x00'
+	                      b'\x00\x00\x00\x00\xEA\x03\x2E\x00\x00\x00'
+	                      b'{"Name": "admin", "SessionID": "0x0000005F"}'
+	                      b'\x0A\x00')
+
+def test_ClientLogoutReply_accept():
+	data = (b'\xFF\x01\x00\x00\x5A\x00\x00\x00\x00\x00'
+	        b'\x00\x00\x00\x00\xeb\x03\x3A\x00\x00\x00'
+	        b'{ "Name" : "", "Ret" : 100, '
+	        b'"SessionID" : "0x00000059" }\x0A\x00')
+	acceptor = ClientLogout.acceptor()
+	(n, m), = acceptor.accept(Packet.decode(data))
+	assert n == 0
+	assert (m.username == "" and m.result == 100 and m.session == 0x59)

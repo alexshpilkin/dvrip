@@ -34,6 +34,8 @@ def md5crypt(password):
 	return bytes(MD5MAGIC[(a+b) % len(MD5MAGIC)]
 	             for a, b in zip(mdfive[0::2], mdfive[1::2]))[:8]
 
+SESSION = '0x{:08X}'
+
 
 class mirrorproperty:
 	__slots__ = ('attr',)
@@ -220,16 +222,17 @@ class ControlMessage(object):
 
 	@classmethod
 	def frompackets(cls, packets):
-		return cls.fromchunks(p.payload for p in packets if p.payload)
+		packets = list(packets)
+		return (packets[0].number,
+		        cls.fromchunks(p.payload for p in packets if p.payload))
 
 	@classmethod
 	def fromchunks(cls, chunks):
 		chunks = list(chunks)
 		if not chunks:
 			raise DVRIPError('no data in DVRIP packet')
-		chunks[-1] = chunks[-1].rstrip(b'\x00')
-		return cls.json_to(load(ChunkReader(chunks),
-		                        encoding='ascii'))
+		chunks[-1] = chunks[-1].rstrip(b'\x00\\')
+		return cls.json_to(load(ChunkReader(chunks), encoding='latin-1'))
 
 
 class ControlAcceptor(object):
@@ -294,6 +297,7 @@ class ClientLoginReply(ControlMessage):
 
 	__slots__ = ('result', 'session', 'timeout', 'channels', 'views',
 	             'chassis', 'aes')
+
 	def __init__(self, result, session, timeout, channels, views, chassis,
 	             aes):
 		init(ClientLoginReply, self)
@@ -311,3 +315,41 @@ class ClientLoginReply(ControlMessage):
 		checkempty(json, 'client login reply')
 
 		return cls(**pun(ClientLoginReply.__slots__))
+
+
+class ClientLogout(ControlMessage):
+	type = 1002
+
+	# FIXME 'username' unused?
+	__slots__ = ('username', 'session')
+
+	def __init__(self, username, session):
+		init(ClientLogout, self)
+
+	@classmethod
+	def acceptor(self):
+		return ControlAcceptor(ClientLogoutReply)
+
+	def for_json(self):
+		return {'Name':      self.username,
+		        'SessionID': SESSION.format(self.session)}
+
+
+class ClientLogoutReply(ControlMessage):
+	type = 1003
+
+	# FIXME 'username' unused?
+	__slots__ = ('result', 'username', 'session')
+
+	def __init__(self, result, username, session):
+		init(ClientLogoutReply, self)
+
+	@classmethod
+	def json_to(cls, json):
+		checkdict(json, 'client logout reply')
+		result   = popint(json, 'Ret',       'result code')
+		username = popstr(json, 'Name',      'username')
+		session  = pophex(json, 'SessionID', 'session number')
+		checkempty(json, 'client logout reply')
+
+		return cls(**pun(ClientLogoutReply.__slots__))
