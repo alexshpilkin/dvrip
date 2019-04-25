@@ -9,6 +9,36 @@ def test_md5crypt_empty():
 def test_md5crypt_tluafed():
 	assert md5crypt(b'tluafed') == b'OxhlwSG8'
 
+def test_checkbool_invalid():
+	with raises(DVRIPError, match='not a boolean in test'):
+		checkbool(None, 'test')
+
+def test_checkint_invalid():
+	with raises(DVRIPError, match='not an integer in test'):
+		checkint(None, 'test')
+
+def test_checkstr_invalid():
+	with raises(DVRIPError, match='not a string in test'):
+		checkstr(None, 'test')
+
+def test_checkhex_invalid():
+	with raises(DVRIPError, match='not a hex string in test'):
+		checkhex('spam', 'test')
+	with raises(DVRIPError, match='not a hex string in test'):
+		checkhex('0xSPAM', 'test')
+
+def test_checkdict_invalid():
+	with raises(DVRIPError, match='not a dictionary in test'):
+		checkdict(None, 'test')
+
+def test_checkempty_invalid():
+	with raises(DVRIPError, match='extra keys in test'):
+		checkempty({'spam': 'sausages'}, 'test')
+
+def test_popkey_invalid():
+	with raises(DVRIPError, match='test missing'):
+		popkey({'spam': 'sausages'}, 'ham', 'test')
+
 def test_mirrorproperty():
 	class Foo:
 		y = mirrorproperty('x')

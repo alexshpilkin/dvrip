@@ -85,6 +85,12 @@ def checkstr(json, description):
 		raise DVRIPError('not a string in {}'.format(description))
 	return json
 
+def checkhex(json, description):
+	checkstr(json, description)
+	if json[:2] != '0x' or not all(c in hexdigits for c in json[2:]):
+		raise DVRIPError('not a hex string in {}'.format(description))
+	return int(json[2:], 16)
+
 def checkdict(json, description):
 	if not isinstance(json, dict):
 		raise DVRIPError('not a dictionary in {}'.format(description))
@@ -94,6 +100,7 @@ def checkempty(json, description):
 	assert isinstance(json, dict)
 	if json:
 		raise DVRIPError('extra keys in {}'.format(description))
+	return json
 
 def popkey(json, key, description):
 	assert isinstance(json, dict)
@@ -109,10 +116,7 @@ def popstr(json, key, description):
 	return checkstr(popkey(json, key, description), description)
 
 def pophex(json, key, description):
-	value = popstr(json, key, description)
-	if value[:2] != '0x' or not all(c in hexdigits for c in value[2:]):
-		raise DVRIPError('invalid hex string in {}'.format(description))
-	return int(value[2:], 16)
+	return checkhex(popkey(json, key, description), description)
 
 
 class Packet(object):
