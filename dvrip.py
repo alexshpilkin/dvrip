@@ -32,6 +32,8 @@ class AbstractPacket(object):
 		return self.__STRUCT.size
 
 	def pack_into(self, buffer, offset=0):
+		assert self.session is not None and self.number is not None
+
 		struct = self.__STRUCT
 		struct.pack_into(buffer, offset, self.MAGIC, self.VERSION,
 		                 self.session, self.number)
@@ -66,6 +68,13 @@ class AbstractControlPacket(AbstractPacket):
 		return super().size + self.__STRUCT.size + self.length
 
 	def pack_into(self, buffer, offset=0):
+		assert (self.fragment is not None and
+		        self.fragments is not None and
+		        self.type is not None)
+		assert self.fragments != 1
+		assert (self.fragment < self.fragments or
+		        self.fragment == self.fragments == 0)
+
 		buffer = super().pack_into(buffer, offset)
 		struct = self.__STRUCT
 		struct.pack_into(buffer, 0, self.fragments, self.fragment,
