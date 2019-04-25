@@ -1,3 +1,5 @@
+.coverage
 __pycache__
+*,cover
 *.pyc
 *.pyo

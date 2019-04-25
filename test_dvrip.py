@@ -18,6 +18,11 @@ def test_AbstractPacket_dump():
 	p.dump(b)
 	assert p.encode() == b.getvalue()
 
+def test_AbstractPacket_copy():
+	p = AbstractPacket(0xdefa, 0xabcd)
+	q = AbstractPacket(other=p)
+	assert p.encode() == q.encode()
+
 def test_UnknownControlPacket_encode():
 	p = UnknownControlPacket(b'hello', 0x7856, 0x34, 0x12, 0xdefa, 0xabcd)
 	assert p.encode().hex() == ('ff010000cdab0000fade0000'
@@ -29,3 +34,8 @@ def test_UnknownControlPacket_dump():
 	p = UnknownControlPacket(b'hello', 0x7856, 0x34, 0x12, 0xdefa, 0xabcd)
 	p.dump(b)
 	assert p.encode() == b.getvalue()
+
+def test_UnknownControlPacket_copy():
+	p = UnknownControlPacket(b'hello', 0x7856, 0x34, 0x12, 0xdefa, 0xabcd)
+	q = UnknownControlPacket(other=p)
+	assert p.encode() == q.encode()
