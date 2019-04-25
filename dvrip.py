@@ -83,21 +83,21 @@ class AbstractControlPacket(AbstractPacket):
 
 
 class UnknownControlPacket(AbstractControlPacket):
-	__slots__ = ('data',)
-	def __init__(self, data=None, *args, other=None, **named):
+	__slots__ = ('payload',)
+	def __init__(self, payload=None, *args, other=None, **named):
 		super().__init__(*args, other=other, **named)
 
 		if isinstance(other, UnknownControlPacket):
-			assert data is None
-			data = other.data
-		self.data = data
+			assert payload is None
+			payload = other.payload
+		self.payload = payload
 
 	@property
 	def length(self):
-		return len(self.data)
+		return len(self.payload)
 
 	def encodeto(self, buffer, offset=0):
-		buffer = super().encodeto(buffer, offset)
-		data   = self.data
-		buffer[:len(data)] = data
-		return buffer[len(data):]
+		buffer  = super().encodeto(buffer, offset)
+		payload = self.payload
+		buffer[:len(payload)] = payload
+		return buffer[len(payload):]
