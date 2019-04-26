@@ -1,6 +1,6 @@
 from io      import BytesIO
 from struct  import Struct
-from .errors import DVRIPError
+from .errors import DVRIPDecodeError
 from .utils  import init as _init
 
 __all__ = ('Packet',)
@@ -99,11 +99,11 @@ class Packet(object):
 		(magic, version, session, number,
 		 _fragment0, _fragment1, type, length) = header  # pylint: disable=redefined-builtin
 		if magic != cls.MAGIC:
-			raise DVRIPError('invalid DVRIP magic')
+			raise DVRIPDecodeError('invalid DVRIP magic')
 		if version != cls.VERSION:
-			raise DVRIPError('unknown DVRIP version')
+			raise DVRIPDecodeError('unknown DVRIP version')
 		if length > cls.MAXLEN:
-			raise DVRIPError('DVRIP packet too long')
+			raise DVRIPDecodeError('DVRIP packet too long')
 		payload = _read(file, length)
 		return cls(session=session, number=number,
 		           fragments=_fragment0, fragment=_fragment1,

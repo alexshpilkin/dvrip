@@ -14,27 +14,27 @@ def test_md5crypt_tluafed():
 	assert md5crypt(b'tluafed') == b'OxhlwSG8'
 
 def test_checkbool_invalid():
-	with raises(DVRIPError, match='not a boolean in test'):
+	with raises(DVRIPDecodeError, match='not a boolean in test'):
 		checkbool(None, 'test')
 
 def test_checkint_invalid():
-	with raises(DVRIPError, match='not an integer in test'):
+	with raises(DVRIPDecodeError, match='not an integer in test'):
 		checkint(None, 'test')
 
 def test_checkstr_invalid():
-	with raises(DVRIPError, match='not a string in test'):
+	with raises(DVRIPDecodeError, match='not a string in test'):
 		checkstr(None, 'test')
 
 def test_checkdict_invalid():
-	with raises(DVRIPError, match='not a dictionary in test'):
+	with raises(DVRIPDecodeError, match='not a dictionary in test'):
 		checkdict(None, 'test')
 
 def test_checkempty_invalid():
-	with raises(DVRIPError, match='extra keys in test'):
+	with raises(DVRIPDecodeError, match='extra keys in test'):
 		checkempty({'spam': 'sausages'}, 'test')
 
 def test_popkey_invalid():
-	with raises(DVRIPError, match='test missing'):
+	with raises(DVRIPDecodeError, match='test missing'):
 		popkey({'spam': 'sausages'}, 'ham', 'test')
 
 def test_mirrorproperty():
@@ -66,13 +66,13 @@ def test_Packet_decode():
 	assert Packet.decode(data).encode() == data
 
 def test_Packet_decode_invalid():
-	with raises(DVRIPError, match='invalid DVRIP magic'):
+	with raises(DVRIPDecodeError, match='invalid DVRIP magic'):
 		Packet.decode(bytes.fromhex('fe010000cdab0000fade0000'
 		                            '123456780500000068656c6c6f'))
-	with raises(DVRIPError, match='unknown DVRIP version'):
+	with raises(DVRIPDecodeError, match='unknown DVRIP version'):
 		Packet.decode(bytes.fromhex('ff020000cdab0000fade0000'
 		                            '123456780500000068656c6c6f'))
-	with raises(DVRIPError, match='DVRIP packet too long'):
+	with raises(DVRIPDecodeError, match='DVRIP packet too long'):
 		Packet.decode(bytes.fromhex('ff010000cdab0000fade0000'
 		                            '123456780140000068656c6c6f'))
 
@@ -97,7 +97,7 @@ def test_Status_for_json():
 def test_Status_json_to():
 	# pylint: disable=no-value-for-parameter
 	assert Status.json_to(100) == Status(100)
-	with raises(DVRIPError, match="'SPAM' is not a valid status code"):
+	with raises(DVRIPDecodeError, match="'SPAM' is not a valid status code"):
 		Status.json_to('SPAM')
 
 def test_Session_repr():
@@ -114,11 +114,11 @@ def test_Session_for_json():
 
 def test_Session_json_to():
 	assert Session.json_to('0x00000057') == Session(0x57)
-	with raises(DVRIPError, match="'SPAM' is not a valid session ID"):
+	with raises(DVRIPDecodeError, match="'SPAM' is not a valid session ID"):
 		Session.json_to('SPAM')
-	with raises(DVRIPError, match="'0xSPAM' is not a valid session ID"):
+	with raises(DVRIPDecodeError, match="'0xSPAM' is not a valid session ID"):
 		Session.json_to('0xSPAM')
-	with raises(DVRIPError, match="'0x59AE' is not a valid session ID"):
+	with raises(DVRIPDecodeError, match="'0x59AE' is not a valid session ID"):
 		Session.json_to('0x59AE')
 
 class MockSequence(object):  # pylint: disable=too-few-public-methods
@@ -177,7 +177,7 @@ def test_ClientLoginReply_frompackets():
 	        m.session == Session(0x3F))
 
 def test_ClientLoginReply_fromchunks_empty():
-	with raises(DVRIPError, match='no data in DVRIP packet'):
+	with raises(DVRIPDecodeError, match='no data in DVRIP packet'):
 		ClientLoginReply.fromchunks([])
 
 def test_ControlFilter_accept():
@@ -247,7 +247,7 @@ def test_ControlFilter_accept_invalid_fragments():
 
 	replies = ClientLogin.replies(0)
 	() = replies.accept(p)
-	with raises(DVRIPError, match='conflicting fragment counts'):
+	with raises(DVRIPDecodeError, match='conflicting fragment counts'):
 		replies.accept(q)
 
 def test_ControlFilter_accept_invalid_overrun():
@@ -257,7 +257,7 @@ def test_ControlFilter_accept_invalid_overrun():
 	           fragments=2, fragment=4)
 
 	replies = ClientLogin.replies(0)
-	with raises(DVRIPError, match='invalid fragment number'):
+	with raises(DVRIPDecodeError, match='invalid fragment number'):
 		replies.accept(p)
 
 def test_ControlFilter_accept_invalid_overlap():
@@ -272,7 +272,7 @@ def test_ControlFilter_accept_invalid_overlap():
 
 	replies = ClientLogin.replies(0)
 	() = replies.accept(p)
-	with raises(DVRIPError, match='overlapping fragments'):
+	with raises(DVRIPDecodeError, match='overlapping fragments'):
 		replies.accept(q)
 
 def test_ClientLogout_topackets():

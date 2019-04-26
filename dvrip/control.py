@@ -2,7 +2,7 @@ from enum    import Enum, unique
 from io      import RawIOBase
 from json    import dumps, load
 from string  import hexdigits
-from .errors import DVRIPError
+from .errors import DVRIPDecodeError
 from .packet import Packet
 from .utils  import init as _init
 
@@ -52,8 +52,8 @@ class Session(object):
 		assert isinstance(json, str)
 		if (json[:2] != '0x' or len(json) != 10 or
 		    not all(c in hexdigits for c in json[2:])):
-			raise DVRIPError('{!r} is not a valid session ID'
-			                 .format(json))
+			raise DVRIPDecodeError('{!r} is not a valid session ID'
+			                       .format(json))
 		return cls(id=int(json[2:], 16))
 
 
@@ -86,8 +86,8 @@ class Status(Enum):
 		try:
 			return cls(json)  # pylint: disable=no-value-for-parameter
 		except ValueError:
-			raise DVRIPError('{!r} is not a valid status code'
-			                 .format(json))
+			raise DVRIPDecodeError('{!r} is not a valid status code'
+			                       .format(json))
 
 	# pylint: disable=line-too-long
 	OK       = (100, True,  'OK')
@@ -179,7 +179,7 @@ class ControlMessage(object):
 	def fromchunks(cls, chunks):
 		chunks = list(chunks)
 		if not chunks:
-			raise DVRIPError('no data in DVRIP packet')
+			raise DVRIPDecodeError('no data in DVRIP packet')
 		chunks[-1] = chunks[-1].rstrip(b'\x00\\')
 		return cls.json_to(load(_ChunkReader(chunks), encoding='latin-1'))
 
@@ -206,11 +206,11 @@ class ControlFilter(object):  # pylint: disable=too-few-public-methods
 			self.limit   = max(packet.fragments, 1)
 			self.packets = [None] * self.limit
 		if max(packet.fragments, 1) != self.limit:
-			raise DVRIPError('conflicting fragment counts')
+			raise DVRIPDecodeError('conflicting fragment counts')
 		if packet.fragment >= self.limit:
-			raise DVRIPError('invalid fragment number')
+			raise DVRIPDecodeError('invalid fragment number')
 		if self.packets[packet.fragment] is not None:
-			raise DVRIPError('overlapping fragments')
+			raise DVRIPDecodeError('overlapping fragments')
 
 		assert self.count < self.limit
 		self.packets[packet.fragment] = packet

@@ -1,5 +1,9 @@
-__all__ = ('DVRIPError',)
+__all__ = ('DVRIPError', 'DVRIPDecodeError')
 
 
-class DVRIPError(ValueError):
+class DVRIPError(Exception):
+	pass
+
+
+class DVRIPDecodeError(ValueError, DVRIPError):
 	pass

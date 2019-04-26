@@ -1,5 +1,5 @@
 from inspect import currentframe
-from .errors import DVRIPError
+from .errors import DVRIPDecodeError
 
 
 def init(type, obj=None):  # pylint: disable=redefined-builtin
@@ -14,35 +14,38 @@ def pun(attrs):
 
 def checkbool(json, description):
 	if not isinstance(json, bool):
-		raise DVRIPError('not a boolean in {}'.format(description))
+		raise DVRIPDecodeError('not a boolean in {}'
+		                       .format(description))
 	return json
 
 def checkint(json, description):
 	if not isinstance(json, int):
-		raise DVRIPError('not an integer in {}'.format(description))
+		raise DVRIPDecodeError('not an integer in {}'
+		                       .format(description))
 	return json
 
 def checkstr(json, description):
 	if not isinstance(json, str):
-		raise DVRIPError('not a string in {}'.format(description))
+		raise DVRIPDecodeError('not a string in {}'.format(description))
 	return json
 
 def checkdict(json, description):
 	if not isinstance(json, dict):
-		raise DVRIPError('not a dictionary in {}'.format(description))
+		raise DVRIPDecodeError('not a dictionary in {}'
+		                       .format(description))
 	return json
 
 def checkempty(json, description):
 	assert isinstance(json, dict)
 	if json:
-		raise DVRIPError('extra keys in {}'.format(description))
+		raise DVRIPDecodeError('extra keys in {}'.format(description))
 	return json
 
 def popkey(json, key, description):
 	assert isinstance(json, dict)
 	value = json.pop(key, Ellipsis)
 	if value is Ellipsis:
-		raise DVRIPError('{} missing'.format(description))
+		raise DVRIPDecodeError('{} missing'.format(description))
 	return value
 
 def popint(json, key, description):
