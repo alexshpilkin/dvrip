@@ -12,6 +12,7 @@ disable=
 	mixed-indentation,                # W0312 -- as intended
 	invalid-name,                     # C0103 -- as intended
 	missing-docstring,                # C0111 -- for now
+	multiple-statements,              # C0321 -- as intended
 	bad-whitespace,                   # C0326 -- fooled by alignment
 	bad-continuation,                 # C0330 -- fooled by alignment
 	useless-object-inheritance,       # R0205 -- as intended

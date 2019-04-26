@@ -1,0 +1,6 @@
+include CHANGES.rst
+include LICENSE
+include README.rst
+include .coveragerc
+include pylintrc
+include test_*.py

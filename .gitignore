@@ -1,5 +1,8 @@
 .coverage
 __pycache__
 *,cover
+build
+dist
+*.egg-info
 *.pyc
 *.pyo

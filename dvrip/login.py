@@ -31,11 +31,13 @@ class ClientLogin(ControlMessage):
 		return ControlFilter(ClientLoginReply)
 
 	def for_json(self):
-		return {'LoginType':   self.service,
-		        'UserName':    self.username,
-		        'PassWord':    md5crypt(self.password.encode('utf-8'))
-		                               .decode('ascii'),
-		        'EncryptType': 'MD5'}
+		return {
+			'LoginType':   self.service,
+			'UserName':    self.username,
+			'PassWord':    md5crypt(self.password.encode('utf-8'))
+			                       .decode('ascii'),
+			'EncryptType': 'MD5'
+		}
 
 
 class ClientLoginReply(ControlMessage):
@@ -79,8 +81,10 @@ class ClientLogout(ControlMessage):
 		return ControlFilter(ClientLogoutReply)
 
 	def for_json(self):
-		return {'Name':      self.username,
-		        'SessionID': self.session.for_json()}
+		return {
+			'Name':      self.username,
+			'SessionID': self.session.for_json()
+		}
 
 
 class ClientLogoutReply(ControlMessage):
