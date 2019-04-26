@@ -1,6 +1,6 @@
 from hashlib  import md5
 from string   import ascii_lowercase, ascii_uppercase, digits
-from .control import ControlMessage, ControlFilter, Status, Session
+from .message import ControlMessage, ControlFilter, Status, Session
 from .errors  import DVRIPDecodeError
 from .utils   import (checkbool as _checkbool, checkdict as _checkdict,
                       checkempty as _checkempty, eq as _eq, init as _init,
@@ -83,8 +83,8 @@ class ClientLoginReply(ControlMessage):
 
 	def for_json(self):
 		return {
-			'Ret': self.status.for_json(),
-			'SessionID': self.session.for_json(),
+			'Ret':           self.status.for_json(),
+			'SessionID':     self.session.for_json(),
 			'AliveInterval': self.timeout,
 			'ChannelNum':    self.channels,
 			'ExtraChannel':  self.views,

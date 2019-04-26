@@ -8,7 +8,7 @@ from socket     import socket as Socket
 
 # pylint: disable=wildcard-import,unused-wildcard-import
 from dvrip         import *
-from dvrip.control import _ChunkReader
+from dvrip.message import _ChunkReader
 from dvrip.packet  import _mirrorproperty
 from dvrip.utils   import checkbool, checkdict, checkempty, checkint, \
                           checkstr, popkey

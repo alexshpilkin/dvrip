@@ -1,6 +1,6 @@
 from .errors  import *
 from .packet  import *
-from .control import *
+from .message import *
 from .login   import *
 from .utils   import init as _init
 
