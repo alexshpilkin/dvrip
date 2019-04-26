@@ -3,10 +3,9 @@
 from socket     import AF_INET, SOCK_STREAM, socket as Socket
 from sys        import argv
 from dvrip      import *  # pylint: disable=wildcard-import,unused-wildcard-import
-from test_dvrip import MockConnection
 
 
-import dvrip.packet  # pylint: disable=ungrouped-imports
+import dvrip.packet
 
 def _read(file, length, _read=dvrip.packet._read):  # pylint: disable=protected-access
 	data = _read(file, length)
@@ -20,21 +19,8 @@ def _write(file, data, _write=dvrip.packet._write):  # pylint: disable=protected
 dvrip.packet._write = _write  # pylint: disable=protected-access
 
 
-socket = Socket(AF_INET, SOCK_STREAM)
-socket.connect((argv[1], 34567))
-fp = socket.makefile('rwb')
-req = ClientLogin(argv[2], argv[3])
-for q in req.topackets(MockConnection()):
-	q.dump(fp)
-fp.flush()
-p = Packet.load(fp)
-(n, rep), = req.replies(q.number).accept(p)  # pylint: disable=undefined-loop-variable
+conn = Connection(Socket(AF_INET, SOCK_STREAM))
+rep  = conn.connect((argv[1], 34567), argv[2], argv[3])
 print(rep.status, rep.session)
-
-req2 = ClientLogout(argv[2], rep.session)
-for q2 in req2.topackets(MockConnection(session=rep.session, number=0xfaa)):
-	q2.dump(fp)
-fp.flush()
-p2 = Packet.load(fp)
-(n2, rep2), = req2.replies(q2.number).accept(p2)  # pylint: disable=undefined-loop-variable
+rep2 = conn.logout()  # pylint: disable=undefined-loop-variable
 print(rep2.status, rep2.session)

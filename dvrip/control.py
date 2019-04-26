@@ -150,6 +150,11 @@ class Status(Enum):
 class ControlMessage(object):
 	__slots__ = ()
 
+	def chunks(self):
+		size = Packet.MAXLEN  # FIXME Don't mention Packet explicitly?
+		json = dumps(self.for_json()).encode('ascii') + b'\x0A\x00'
+		return [json[i:i+size] for i in range(0, len(json), size)]
+
 	def topackets(self, conn):
 		chunks   = self.chunks()
 		length   = len(chunks)
@@ -164,17 +169,6 @@ class ControlMessage(object):
 				                      fragments=length,
 				                      fragment=i)
 
-	def chunks(self):
-		size = Packet.MAXLEN  # FIXME Don't mention Packet explicitly?
-		json = dumps(self.for_json()).encode('ascii') + b'\x0A\x00'
-		return [json[i:i+size] for i in range(0, len(json), size)]
-
-	@classmethod
-	def frompackets(cls, packets):
-		packets = list(packets)
-		return (packets[0].number,
-		        cls.fromchunks(p.payload for p in packets if p.payload))
-
 	@classmethod
 	def fromchunks(cls, chunks):
 		chunks = list(chunks)
@@ -183,8 +177,13 @@ class ControlMessage(object):
 		chunks[-1] = chunks[-1].rstrip(b'\x00\\')
 		return cls.json_to(load(_ChunkReader(chunks), encoding='latin-1'))
 
+	@classmethod
+	def frompackets(cls, packets):
+		packets = list(packets)
+		return cls.fromchunks(p.payload for p in packets if p.payload)
 
-class ControlFilter(object):  # pylint: disable=too-few-public-methods
+
+class ControlFilter(object):
 	__slots__ = ('cls', 'number', 'count', 'limit', 'packets')
 
 	def __init__(self, cls, number):  # pylint: disable=unused-argument
@@ -218,3 +217,6 @@ class ControlFilter(object):  # pylint: disable=too-few-public-methods
 		if self.count < self.limit:
 			return ()
 		return (self.cls.frompackets(self.packets),)
+
+	def open(self):
+		return self.limit is None or self.count < self.limit

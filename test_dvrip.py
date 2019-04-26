@@ -1,7 +1,10 @@
 from hypothesis import given
 from hypothesis.strategies \
                 import booleans, integers, sampled_from, text
-from pytest     import raises
+from io         import BytesIO, RawIOBase
+from mock       import Mock
+from pytest     import fixture, raises
+from socket     import socket as Socket
 
 # pylint: disable=wildcard-import,unused-wildcard-import
 from dvrip         import *
@@ -125,24 +128,47 @@ def test_Session_json_to():
 	with raises(DVRIPDecodeError, match="'0x59AE' is not a valid session ID"):
 		Session.json_to('0x59AE')
 
-class MockSequence(object):  # pylint: disable=too-few-public-methods
-	def __init__(self, session, number):
-		self.session = session
-		self.number  = number
+@fixture
+def rfile():
+	return BytesIO()
 
-	def packet(self, *args, **named):
-		packet = Packet(self.session.id, self.number, *args, **named)
-		return packet
+@fixture
+def wfile():
+	return BytesIO()
 
-class MockConnection(object):  # pylint: disable=too-few-public-methods
-	def __init__(self, session=Session(0), number=0):
-		self.session = session
-		self.number  = number
+class SFile(RawIOBase):
+	def __init__(self, rfile, wfile):
+		self.rfile = rfile
+		self.wfile = wfile
 
-	def sequence(self):
-		s = MockSequence(self.session, self.number)
-		self.number += 1
-		return s
+	def readable(self):
+		return True
+
+	def readinto(self, *args, **named):
+		return self.rfile.readinto(*args, **named)
+
+	def writable(self):
+		return True
+
+	def write(self, *args, **named):
+		return self.wfile.write(*args, **named)
+
+@fixture
+def sfile(rfile, wfile):
+	return SFile(rfile, wfile)
+
+@fixture
+def sock(sfile):
+	return Mock(Socket, makefile=Mock(return_value=sfile))
+
+@fixture
+def conn(sock):
+	return Connection(sock)
+
+@fixture
+def noconn(conn):
+	conn.session = Session(0x57)
+	return conn
 
 def test_ClientLogin_repr():
 	assert (repr(ClientLogin('admin', passhash='def', service='abc')) ==
@@ -154,23 +180,23 @@ def test_ClientLogin_eq():
 	assert ClientLogin('admin', '') != ClientLogin('admin', 'spam')
 	assert ClientLogin('admin', '') != Ellipsis
  
-def test_ClientLogin_topackets():
-	p, = tuple(ClientLogin('admin', '').topackets(MockConnection()))
-	assert (p.encode() == b'\xFF\x01\x00\x00\x00\x00\x00\x00\x00\x00'
-	                      b'\x00\x00\x00\x00\xe8\x03\x5F\x00\x00\x00'
+def test_ClientLogin_topackets(noconn):
+	p, = tuple(ClientLogin('admin', '').topackets(noconn))
+	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
+	                      b'\x00\x00\x00\x00\xE8\x03\x5F\x00\x00\x00'
 	                      b'{"UserName": "admin", '
 	                      b'"PassWord": "tlJwpbo6", '
 	                      b'"EncryptType": "MD5", '
 	                      b'"LoginType": "DVRIP-Web"}'
 	                      b'\x0A\x00')
 
-def test_ClientLogin_topackets_chunked():
-	p, q = tuple(ClientLogin('a'*16384, '').topackets(MockConnection()))
-	assert (p.encode() == b'\xFF\x01\x00\x00\x00\x00\x00\x00\x00\x00'
-	                      b'\x00\x00\x02\x00\xe8\x03\x00\x40\x00\x00'
+def test_ClientLogin_topackets_chunked(noconn):
+	p, q = tuple(ClientLogin('a'*16384, '').topackets(noconn))
+	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
+	                      b'\x00\x00\x02\x00\xE8\x03\x00\x40\x00\x00'
 	                      b'{"UserName": "' + b'a' * (16384 - 14))
-	assert (q.encode() == b'\xFF\x01\x00\x00\x00\x00\x00\x00\x00\x00'
-	                      b'\x00\x00\x02\x01\xe8\x03\x5A\x00\x00\x00' +
+	assert (q.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
+	                      b'\x00\x00\x02\x01\xE8\x03\x5A\x00\x00\x00' +
 	                      b'a' * 14 + b'", '
 	                      b'"PassWord": "tlJwpbo6", '
 	                      b'"EncryptType": "MD5", '
@@ -197,17 +223,16 @@ def test_ClientLogin_forjson_jsonto_forjson(username, password):
 	assert ClientLogin.json_to(m.for_json()).for_json() == m.for_json()
 
 def test_ClientLoginReply_frompackets():
-	chunks = [b'\xFF\x01\x00\x00\x3F\x00\x00\x00\x00\x00',
+	chunks = [b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00',
 	          b'\x00\x00\x00\x00\xe9\x03\x96\x00\x00\x00'
 	          b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	          b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	          b'"ExtraChannel" : 0, "Ret" : 100, '
-	          b'"SessionID" : "0x0000003F" }\x0A\x00']
-	n, m = ClientLoginReply.frompackets([Packet.load(_ChunkReader(chunks))])
-	assert n == 0
+	          b'"SessionID" : "0x00000057" }\x0A\x00']
+	m = ClientLoginReply.frompackets([Packet.load(_ChunkReader(chunks))])
 	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
-	        m.session == Session(0x3F))
+	        m.session == Session(0x57))
 
 def test_ClientLoginReply_fromchunks_empty():
 	with raises(DVRIPDecodeError, match='no data in DVRIP packet'):
@@ -231,39 +256,37 @@ def test_ClientLoginReply_forjson_jsonto_fromjson(status, id, timeout,
 	assert ClientLoginReply.json_to(m.for_json()).for_json() == m.for_json()
 
 def test_ControlFilter_accept():
-	chunks = [b'\xFF\x01\x00\x00\x3F\x00\x00\x00\x00\x00',
+	chunks = [b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00',
 	          b'\x00\x00\x00\x00\xe9\x03\x96\x00\x00\x00'
 	          b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	          b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	          b'"ExtraChannel" : 0, "Ret" : 100, '
-	          b'"SessionID" : "0x0000003F" }\x0A\x00']
+	          b'"SessionID" : "0x00000057" }\x0A\x00']
 	replies = ClientLogin.replies(0)
-	(n, m), = replies.accept(Packet.load(_ChunkReader(chunks)))
-	assert n == 0
+	m, = replies.accept(Packet.load(_ChunkReader(chunks)))
 	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
-	        m.session == Session(0x3F))
+	        m.session == Session(0x57))
 
 def test_ControlFilter_accept_chunked():
-	p = Packet(0x3F, 0, 1001,
+	p = Packet(0x57, 0, 1001,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	           fragments=2, fragment=0)
-	q = Packet(0x3F, 0, 1001,
+	q = Packet(0x57, 0, 1001,
 	           b'"ExtraChannel" : 0, "Ret" : 100, '
-	           b'"SessionID" : "0x0000003F" }\x0A\x00',
+	           b'"SessionID" : "0x00000057" }\x0A\x00',
 	           fragments=2, fragment=1)
 
 	replies = ClientLogin.replies(0)
 	() = replies.accept(p)
-	(n, m), = replies.accept(q)
-	assert n == 0
+	m, = replies.accept(q)
 	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
-	        m.session == Session(0x3F))
+	        m.session == Session(0x57))
 
 def test_ControlFilter_accept_wrong_type():
-	p = Packet(0x3F, 0, 1002,
+	p = Packet(0x57, 0, 1002,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	           fragments=2, fragment=0)
@@ -278,7 +301,7 @@ def test_ControlFilter_accept_wrong_number():
 	           fragments=2, fragment=0)
 	q = Packet(0x3F, 57, 1001,
 	           b'"ExtraChannel" : 0, "Ret" : 100, '
-	           b'"SessionID" : "0x0000003F" }\x0A\x00',
+	           b'"SessionID" : "0x00000057" }\x0A\x00',
 	           fragments=2, fragment=1)
 
 	replies = ClientLogin.replies(0)
@@ -292,7 +315,7 @@ def test_ControlFilter_accept_invalid_fragments():
 	           fragments=2, fragment=0)
 	q = Packet(0x3F, 0, 1001,
 	           b'"ExtraChannel" : 0, "Ret" : 100, '
-	           b'"SessionID" : "0x0000003F" }\x0A\x00',
+	           b'"SessionID" : "0x00000057" }\x0A\x00',
 	           fragments=3, fragment=1)
 
 	replies = ClientLogin.replies(0)
@@ -317,7 +340,7 @@ def test_ControlFilter_accept_invalid_overlap():
 	           fragments=2, fragment=0)
 	q = Packet(0x3F, 0, 1001,
 	           b'"ExtraChannel" : 0, "Ret" : 100, '
-	           b'"SessionID" : "0x0000003F" }\x0A\x00',
+	           b'"SessionID" : "0x00000057" }\x0A\x00',
 	           fragments=2, fragment=0)
 
 	replies = ClientLogin.replies(0)
@@ -325,12 +348,11 @@ def test_ControlFilter_accept_invalid_overlap():
 	with raises(DVRIPDecodeError, match='overlapping fragments'):
 		replies.accept(q)
 
-def test_ClientLogout_topackets():
-	p, = (ClientLogout('admin', Session(0x5F))
-	     .topackets(MockConnection(session=Session(0x5F))))
-	assert p.encode() == (b'\xFF\x01\x00\x00\x5F\x00\x00\x00\x00\x00'
+def test_ClientLogout_topackets(noconn):
+	p, = ClientLogout('admin', noconn.session).topackets(noconn)
+	assert p.encode() == (b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xEA\x03\x2E\x00\x00\x00'
-	                      b'{"Name": "admin", "SessionID": "0x0000005F"}'
+	                      b'{"Name": "admin", "SessionID": "0x00000057"}'
 	                      b'\x0A\x00')
 
 @given(text(), integers(min_value=0, max_value=0xFFFFFFFF))
@@ -344,15 +366,14 @@ def test_ClientLogout_forjson_jsonto_forjson(username, id):
 	assert ClientLogout.json_to(m.for_json()).for_json() == m.for_json()
 
 def test_ClientLogoutReply_accept():
-	data = (b'\xFF\x01\x00\x00\x5A\x00\x00\x00\x00\x00'
+	data = (b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	        b'\x00\x00\x00\x00\xeb\x03\x3A\x00\x00\x00'
 	        b'{ "Name" : "", "Ret" : 100, '
-	        b'"SessionID" : "0x00000059" }\x0A\x00')
+	        b'"SessionID" : "0x00000057" }\x0A\x00')
 	replies = ClientLogout.replies(0)
-	(n, m), = replies.accept(Packet.decode(data))
-	assert n == 0
+	m, = replies.accept(Packet.decode(data))
 	assert (m.username == "" and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
-	        m.session == Session(0x59))
+	        m.session == Session(0x57))
 
 @given(sampled_from(Status), text(),
        integers(min_value=0, max_value=0xFFFFFFFF))
@@ -366,3 +387,54 @@ def test_ClientLogoutReply_forjson_jsonto_forjson(status, username, id):
 	m = ClientLogoutReply(status, username, Session(id))
 	assert (ClientLogoutReply.json_to(m.for_json()).for_json() ==
 	        m.for_json())
+
+def test_Connection_logout(noconn, rfile, wfile, capsys):
+	session = noconn.session
+
+	noconn.number = 2
+	p, = (ClientLogoutReply(Status.OK, 'admin', session)
+	     .topackets(noconn))
+	p.dump(rfile)
+	noconn.number = 0
+	p, = (ClientLogoutReply(Status.OK, 'admin', session)
+	     .topackets(noconn))
+	p.dump(rfile)
+	noconn.number = 0
+	noconn.username = 'admin'
+
+	rfile.seek(0); noconn.logout(); wfile.seek(0)
+	m = ClientLogout.frompackets([Packet.load(wfile)])
+	assert m == ClientLogout('admin', session)
+	out1, out2 = capsys.readouterr().out.split('\n')
+	assert out1.startswith('unrecognized packet: ') and out2 == ''
+
+def test_Connection_login(conn, rfile, wfile):
+	session, conn.session = conn.session, Session(0x57)
+	p, = (ClientLoginReply(Status.OK, Session(0x57),
+	                       21, 4, 0, 'HVR', False)
+	     .topackets(conn))
+	p.dump(rfile); conn.number -= 1
+	conn.session = session
+
+	rfile.seek(0)
+	conn.connect(('example.com', conn.PORT),
+	             'admin', passhash='abc', service='def')
+	wfile.seek(0)
+	m = ClientLogin.frompackets([Packet.load(wfile)])
+
+def test_Connection_login_invalid(conn, rfile, wfile):
+	session, conn.session = conn.session, Session(0x57)
+	p, = (ClientLoginReply(Status.ERROR, Session(0x57),
+	                       21, 4, 0, 'HVR', False)
+	     .topackets(conn))
+	p.dump(rfile); conn.number -= 1
+	conn.session = session
+
+	rfile.seek(0)
+	with raises(DVRIPRequestError, match='Unknown error'):
+		try:
+			conn.connect(('example.com', conn.PORT),
+			             'admin', passhash='abc', service='def')
+		except DVRIPRequestError as e:
+			assert e.code == Status.ERROR.code
+			raise
