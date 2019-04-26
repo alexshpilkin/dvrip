@@ -7,7 +7,8 @@ from pytest     import raises
 from dvrip         import *
 from dvrip.control import _ChunkReader
 from dvrip.packet  import _mirrorproperty
-from dvrip.utils   import *
+from dvrip.utils   import checkbool, checkdict, checkempty, checkint, \
+                          checkstr, popkey
 
 
 def test_md5crypt_empty():
@@ -142,6 +143,10 @@ class MockConnection(object):  # pylint: disable=too-few-public-methods
 		s = MockSequence(self.session, self.number)
 		self.number += 1
 		return s
+
+def test_ClientLogin_repr():
+	assert (repr(ClientLogin('admin', passhash='def', service='abc')) ==
+	        "ClientLogin('admin', passhash='def', service='abc')")
 
 def test_ClientLogin_eq():
 	assert ClientLogin('admin', '') == ClientLogin('admin', '')

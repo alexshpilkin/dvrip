@@ -1,8 +1,8 @@
-from inspect import currentframe
+from inspect import currentframe, getfullargspec
 from .errors import DVRIPDecodeError
 
 
-def init(type, obj=None):  # pylint: disable=redefined-builtin
+def init(type, obj):  # pylint: disable=redefined-builtin
 	frame = currentframe().f_back
 	for attr in type.__slots__:
 		setattr(obj, attr, frame.f_locals[attr])
@@ -16,6 +16,19 @@ def eq(type, lhs, rhs):  # pylint: disable=redefined-builtin
 		return NotImplemented
 	return all(getattr(lhs, attr) == getattr(rhs, attr)
 	           for attr in type.__slots__)
+
+def repr(obj):  # pylint: disable=redefined-builtin
+	spec  = getfullargspec(type(obj).__init__)
+	inits = []
+	attrs = list(type(obj).__slots__)
+	for pos in spec.args[1:]:
+		if pos not in attrs: break
+		attrs.remove(pos)
+		inits.append('{!r}'.format(getattr(obj, pos)))
+	for key in attrs:
+		assert key in spec.args + spec.kwonlyargs
+		inits.append('{}={!r}'.format(key, getattr(obj, key)))
+	return '{}({})'.format(type(obj).__qualname__, ', '.join(inits))
 
 def checkbool(json, description):
 	if not isinstance(json, bool):

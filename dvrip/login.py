@@ -5,7 +5,7 @@ from .errors  import DVRIPDecodeError
 from .utils   import (checkbool as _checkbool, checkdict as _checkdict,
                       checkempty as _checkempty, eq as _eq, init as _init,
                       popint as _popint, popkey as _popkey, popstr as _popstr,
-                      pun as _pun)
+                      pun as _pun, repr as _repr)
 
 __all__ = ('md5crypt', 'ClientLogin', 'ClientLoginReply', 'ClientLogout',
            'ClientLogoutReply')
@@ -31,6 +31,8 @@ class ClientLogin(ControlMessage):
 			passhash = (md5crypt(password.encode('utf-8'))
 			           .decode('ascii'))
 		_init(ClientLogin, self)
+
+	__repr__ = _repr
 
 	def __eq__(self, other):
 		return _eq(ClientLogin, self, other)
@@ -74,6 +76,8 @@ class ClientLoginReply(ControlMessage):
 	             channels, views, chassis, encrypt):  # pylint: disable=unused-argument,too-many-arguments
 		_init(ClientLoginReply, self)
 
+	__repr__ = _repr
+
 	def __eq__(self, other):
 		return _eq(ClientLoginReply, self, other)
 
@@ -114,6 +118,8 @@ class ClientLogout(ControlMessage):
 	def __init__(self, username, session):  # pylint: disable=unused-argument
 		_init(ClientLogout, self)
 
+	__repr__ = _repr
+
 	def __eq__(self, other):
 		return _eq(ClientLogout, self, other)
 
@@ -146,6 +152,8 @@ class ClientLogoutReply(ControlMessage):
 
 	def __init__(self, status, username, session):  # pylint: disable=unused-argument
 		_init(ClientLogoutReply, self)
+
+	__repr__ = _repr
 
 	def __eq__(self, other):
 		return _eq(ClientLogoutReply, self, other)
