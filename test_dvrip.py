@@ -187,7 +187,7 @@ def test_ControlFilter_accept():
 	          b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	          b'"ExtraChannel" : 0, "Ret" : 100, '
 	          b'"SessionID" : "0x0000003F" }\x0A\x00']
-	replies = ClientLogin.replies()
+	replies = ClientLogin.replies(0)
 	(n, m), = replies.accept(Packet.load(_ChunkReader(chunks)))
 	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.aes is False and
@@ -204,7 +204,7 @@ def test_ControlFilter_accept_chunked():
 	           b'"SessionID" : "0x0000003F" }\x0A\x00',
 	           fragments=2, fragment=1)
 
-	replies = ClientLogin.replies()
+	replies = ClientLogin.replies(0)
 	() = replies.accept(p)
 	(n, m), = replies.accept(q)
 	assert n == 0
@@ -218,7 +218,7 @@ def test_ControlFilter_accept_wrong_type():
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	           fragments=2, fragment=0)
 
-	replies = ClientLogin.replies()
+	replies = ClientLogin.replies(0)
 	assert replies.accept(p) is None
 
 def test_ControlFilter_accept_wrong_number():
@@ -231,7 +231,7 @@ def test_ControlFilter_accept_wrong_number():
 	           b'"SessionID" : "0x0000003F" }\x0A\x00',
 	           fragments=2, fragment=1)
 
-	replies = ClientLogin.replies()
+	replies = ClientLogin.replies(0)
 	() = replies.accept(p)
 	assert replies.accept(q) is None
 
@@ -245,7 +245,7 @@ def test_ControlFilter_accept_invalid_fragments():
 	           b'"SessionID" : "0x0000003F" }\x0A\x00',
 	           fragments=3, fragment=1)
 
-	replies = ClientLogin.replies()
+	replies = ClientLogin.replies(0)
 	() = replies.accept(p)
 	with raises(DVRIPError, match='conflicting fragment counts'):
 		replies.accept(q)
@@ -256,7 +256,7 @@ def test_ControlFilter_accept_invalid_overrun():
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	           fragments=2, fragment=4)
 
-	replies = ClientLogin.replies()
+	replies = ClientLogin.replies(0)
 	with raises(DVRIPError, match='invalid fragment number'):
 		replies.accept(p)
 
@@ -270,7 +270,7 @@ def test_ControlFilter_accept_invalid_overlap():
 	           b'"SessionID" : "0x0000003F" }\x0A\x00',
 	           fragments=2, fragment=0)
 
-	replies = ClientLogin.replies()
+	replies = ClientLogin.replies(0)
 	() = replies.accept(p)
 	with raises(DVRIPError, match='overlapping fragments'):
 		replies.accept(q)
@@ -288,7 +288,7 @@ def test_ClientLogoutReply_accept():
 	        b'\x00\x00\x00\x00\xeb\x03\x3A\x00\x00\x00'
 	        b'{ "Name" : "", "Ret" : 100, '
 	        b'"SessionID" : "0x00000059" }\x0A\x00')
-	replies = ClientLogout.replies()
+	replies = ClientLogout.replies(0)
 	(n, m), = replies.accept(Packet.decode(data))
 	assert n == 0
 	assert (m.username == "" and m.status == Status(100) and  # pylint: disable=no-value-for-parameter

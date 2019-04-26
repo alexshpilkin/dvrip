@@ -187,11 +187,10 @@ class ControlMessage(object):
 class ControlFilter(object):  # pylint: disable=too-few-public-methods
 	__slots__ = ('cls', 'number', 'count', 'limit', 'packets')
 
-	def __init__(self, cls):  # pylint: disable=unused-argument
+	def __init__(self, cls, number):  # pylint: disable=unused-argument
 		#pylint: disable=unused-variable
-		number  = None
 		count   = 0
-		limit   = 0
+		limit   = None
 		packets = None
 		_init(ControlFilter, self)
 
@@ -201,12 +200,11 @@ class ControlFilter(object):  # pylint: disable=too-few-public-methods
 
 		if packet.type != self.cls.type:
 			return None
-		if self.number is None:
-			self.number  = packet.number
-			self.limit   = max(packet.fragments, 1)
-			self.packets = [None] * self.limit
 		if packet.number != self.number:
 			return None
+		if self.limit is None:
+			self.limit   = max(packet.fragments, 1)
+			self.packets = [None] * self.limit
 		if max(packet.fragments, 1) != self.limit:
 			raise DVRIPError('conflicting fragment counts')
 		if packet.fragment >= self.limit:

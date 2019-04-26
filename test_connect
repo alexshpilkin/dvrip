@@ -13,7 +13,7 @@ for q in req.topackets(MockConnection()):
 	q.dump(fp)
 fp.flush()
 p = Packet.load(fp)
-(n, rep), = req.replies().accept(p)
+(n, rep), = req.replies(q.number).accept(p)  # pylint: disable=undefined-loop-variable
 print(rep.status, rep.session)
 
 req2 = ClientLogout(argv[2], rep.session)
@@ -21,5 +21,5 @@ for q2 in req2.topackets(MockConnection(session=rep.session, number=0xfaa)):
 	q2.dump(fp)
 fp.flush()
 p2 = Packet.load(fp)
-(n2, rep2), = req2.replies().accept(p2)
+(n2, rep2), = req2.replies(q2.number).accept(p2)  # pylint: disable=undefined-loop-variable
 print(rep2.status, rep2.session)

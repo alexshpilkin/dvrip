@@ -27,8 +27,8 @@ class ClientLogin(ControlMessage):
 		_init(ClientLogin, self)
 
 	@classmethod
-	def replies(cls):
-		return ControlFilter(ClientLoginReply)
+	def replies(cls, number):
+		return ControlFilter(ClientLoginReply, number)
 
 	def for_json(self):
 		return {
@@ -77,8 +77,8 @@ class ClientLogout(ControlMessage):
 		_init(ClientLogout, self)
 
 	@classmethod
-	def replies(cls):
-		return ControlFilter(ClientLogoutReply)
+	def replies(cls, number):
+		return ControlFilter(ClientLogoutReply, number)
 
 	def for_json(self):
 		return {
