@@ -292,10 +292,10 @@ class Status(Enum):
 class ControlMessage(object):
 	__slots__ = ()
 
-	def topackets(self, session):
+	def topackets(self, conn):
 		chunks   = self.chunks()
 		length   = len(chunks)
-		sequence = session.sequence()
+		sequence = conn.sequence()
 		if length == 1:
 			chunk = next(iter(chunks))
 			yield sequence.packet(self.type, chunk, fragments=0,
@@ -326,7 +326,7 @@ class ControlMessage(object):
 		return cls.json_to(load(ChunkReader(chunks), encoding='latin-1'))
 
 
-class ControlAcceptor(object):
+class ControlFilter(object):
 	__slots__ = ('cls', 'number', 'count', 'limit', 'packets')
 
 	def __init__(self, cls):
@@ -334,7 +334,7 @@ class ControlAcceptor(object):
 		count   = 0
 		limit   = 0
 		packets = None
-		init(ControlAcceptor, self)
+		init(ControlFilter, self)
 
 	def accept(self, packet):
 		# FIXME No idea if this interpretation of sequence
@@ -373,8 +373,8 @@ class ClientLogin(ControlMessage):
 		init(ClientLogin, self)
 
 	@classmethod
-	def acceptor(self):
-		return ControlAcceptor(ClientLoginReply)
+	def replies(self):
+		return ControlFilter(ClientLoginReply)
 
 	def for_json(self):
 		return {'LoginType':   self.service,
@@ -419,8 +419,8 @@ class ClientLogout(ControlMessage):
 		init(ClientLogout, self)
 
 	@classmethod
-	def acceptor(self):
-		return ControlAcceptor(ClientLogoutReply)
+	def replies(self):
+		return ControlFilter(ClientLogoutReply)
 
 	def for_json(self):
 		return {'Name':      self.username,

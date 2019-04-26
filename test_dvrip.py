@@ -104,7 +104,7 @@ class MockSequence(object):
 		packet = Packet(self.session, self.number, *args, **named)
 		return packet
 
-class MockSession(object):
+class MockConnection(object):
 	def __init__(self, session=0, number=0):
 		self.session = session
 		self.number  = number
@@ -115,7 +115,7 @@ class MockSession(object):
 		return s
 
 def test_ClientLogin_topackets():
-	p, = tuple(ClientLogin('admin', '').topackets(MockSession()))
+	p, = tuple(ClientLogin('admin', '').topackets(MockConnection()))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x00\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xe8\x03\x5F\x00\x00\x00'
 	                      b'{"LoginType": "DVRIP-Web", '
@@ -125,7 +125,7 @@ def test_ClientLogin_topackets():
 	                      b'\x0A\x00')
 
 def test_ClientLogin_topackets_chunked():
-	p, q = tuple(ClientLogin('a'*16384, '').topackets(MockSession()))
+	p, q = tuple(ClientLogin('a'*16384, '').topackets(MockConnection()))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x00\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x02\x00\xe8\x03\x00\x40\x00\x00'
 	                      b'{"LoginType": "DVRIP-Web", '
@@ -153,20 +153,20 @@ def test_ClientLoginReply_fromchunks_empty():
 	with raises(DVRIPError, match='no data in DVRIP packet'):
 		ClientLoginReply.fromchunks([])
 
-def test_ControlAcceptor_accept():
+def test_ControlFilter_accept():
 	chunks = [b'\xFF\x01\x00\x00\x3F\x00\x00\x00\x00\x00',
 	          b'\x00\x00\x00\x00\xe9\x03\x96\x00\x00\x00'
 	          b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	          b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	          b'"ExtraChannel" : 0, "Ret" : 100, '
 	          b'"SessionID" : "0x0000003F" }\x0A\x00']
-	acceptor = ClientLogin.acceptor()
-	(n, m), = acceptor.accept(Packet.load(ChunkReader(chunks)))
+	replies = ClientLogin.replies()
+	(n, m), = replies.accept(Packet.load(ChunkReader(chunks)))
 	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
 	        m.views == 0 and m.status == Status(100) and m.session == 0x3F)
 
-def test_ControlAcceptor_accept_chunked():
+def test_ControlFilter_accept_chunked():
 	p = Packet(0x3F, 0, 1001,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
@@ -176,23 +176,23 @@ def test_ControlAcceptor_accept_chunked():
 	           b'"SessionID" : "0x0000003F" }\x0A\x00',
 	           fragments=2, fragment=1)
 
-	acceptor = ClientLogin.acceptor()
-	() = acceptor.accept(p)
-	(n, m), = acceptor.accept(q)
+	replies = ClientLogin.replies()
+	() = replies.accept(p)
+	(n, m), = replies.accept(q)
 	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
 	        m.views == 0 and m.status == Status(100) and m.session == 0x3F)
 
-def test_ControlAcceptor_accept_wrong_type():
+def test_ControlFilter_accept_wrong_type():
 	p = Packet(0x3F, 0, 1002,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	           fragments=2, fragment=0)
 
-	acceptor = ClientLogin.acceptor()
-	assert acceptor.accept(p) is None
+	replies = ClientLogin.replies()
+	assert replies.accept(p) is None
 
-def test_ControlAcceptor_accept_wrong_number():
+def test_ControlFilter_accept_wrong_number():
 	p = Packet(0x3F, 0, 1001,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
@@ -202,11 +202,11 @@ def test_ControlAcceptor_accept_wrong_number():
 	           b'"SessionID" : "0x0000003F" }\x0A\x00',
 	           fragments=2, fragment=1)
 
-	acceptor = ClientLogin.acceptor()
-	() = acceptor.accept(p)
-	assert acceptor.accept(q) is None
+	replies = ClientLogin.replies()
+	() = replies.accept(p)
+	assert replies.accept(q) is None
 
-def test_ControlAcceptor_accept_invalid_fragments():
+def test_ControlFilter_accept_invalid_fragments():
 	p = Packet(0x3F, 0, 1001,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
@@ -216,22 +216,22 @@ def test_ControlAcceptor_accept_invalid_fragments():
 	           b'"SessionID" : "0x0000003F" }\x0A\x00',
 	           fragments=3, fragment=1)
 
-	acceptor = ClientLogin.acceptor()
-	() = acceptor.accept(p)
+	replies = ClientLogin.replies()
+	() = replies.accept(p)
 	with raises(DVRIPError, match='conflicting fragment counts'):
-		acceptor.accept(q)
+		replies.accept(q)
 
-def test_ControlAcceptor_accept_invalid_overrun():
+def test_ControlFilter_accept_invalid_overrun():
 	p = Packet(0x3F, 0, 1001,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	           fragments=2, fragment=4)
 
-	acceptor = ClientLogin.acceptor()
+	replies = ClientLogin.replies()
 	with raises(DVRIPError, match='invalid fragment number'):
-		acceptor.accept(p)
+		replies.accept(p)
 
-def test_ControlAcceptor_accept_invalid_overlap():
+def test_ControlFilter_accept_invalid_overlap():
 	p = Packet(0x3F, 0, 1001,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
@@ -241,13 +241,13 @@ def test_ControlAcceptor_accept_invalid_overlap():
 	           b'"SessionID" : "0x0000003F" }\x0A\x00',
 	           fragments=2, fragment=0)
 
-	acceptor = ClientLogin.acceptor()
-	() = acceptor.accept(p)
+	replies = ClientLogin.replies()
+	() = replies.accept(p)
 	with raises(DVRIPError, match='overlapping fragments'):
-		acceptor.accept(q)
+		replies.accept(q)
 
 def test_ClientLogout_topackets():
-	p, = ClientLogout('admin', 0x5F).topackets(MockSession(session=0x5F))
+	p, = ClientLogout('admin', 0x5F).topackets(MockConnection(session=0x5F))
 	assert p.encode() == (b'\xFF\x01\x00\x00\x5F\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xEA\x03\x2E\x00\x00\x00'
 	                      b'{"Name": "admin", "SessionID": "0x0000005F"}'
@@ -258,8 +258,8 @@ def test_ClientLogoutReply_accept():
 	        b'\x00\x00\x00\x00\xeb\x03\x3A\x00\x00\x00'
 	        b'{ "Name" : "", "Ret" : 100, '
 	        b'"SessionID" : "0x00000059" }\x0A\x00')
-	acceptor = ClientLogout.acceptor()
-	(n, m), = acceptor.accept(Packet.decode(data))
+	replies = ClientLogout.replies()
+	(n, m), = replies.accept(Packet.decode(data))
 	assert n == 0
 	assert (m.username == "" and m.status == Status(100) and
 	        m.session == 0x59)
