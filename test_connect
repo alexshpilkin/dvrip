@@ -2,7 +2,22 @@
 
 from socket     import AF_INET, SOCK_STREAM, socket as Socket
 from sys        import argv
-from test_dvrip import *  # pylint: disable=wildcard-import,unused-wildcard-import
+from dvrip      import *  # pylint: disable=wildcard-import,unused-wildcard-import
+from test_dvrip import MockConnection
+
+
+import dvrip.packet  # pylint: disable=ungrouped-imports
+
+def _read(file, length, _read=dvrip.packet._read):  # pylint: disable=protected-access
+	data = _read(file, length)
+	print('recv', data if data[:1].isascii() else data.hex(), flush=True)
+	return data
+dvrip.packet._read = _read  # pylint: disable=protected-access
+
+def _write(file, data, _write=dvrip.packet._write):  # pylint: disable=protected-access
+	print('send', data if data[:1].isascii() else data.hex(), flush=True)
+	return _write(file, data)
+dvrip.packet._write = _write  # pylint: disable=protected-access
 
 
 socket = Socket(AF_INET, SOCK_STREAM)

@@ -105,7 +105,7 @@ setup(
 	scripts=scripts,
 	python_requires='>=3.5, <4',
 	install_requires=[],
-	tests_require=['pylint', 'pytest', 'pytest-cov'],
+	tests_require=['pylint >=2.3.0', 'pytest', 'pytest-cov'],
 
 	cmdclass={
 		'lint':  Lint,
