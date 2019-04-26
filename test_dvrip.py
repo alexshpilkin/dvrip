@@ -1,4 +1,7 @@
-from pytest import raises
+from hypothesis import given
+from hypothesis.strategies \
+                import booleans, integers, sampled_from, text
+from pytest     import raises
 
 # pylint: disable=wildcard-import,unused-wildcard-import
 from dvrip         import *
@@ -140,28 +143,53 @@ class MockConnection(object):  # pylint: disable=too-few-public-methods
 		self.number += 1
 		return s
 
+def test_ClientLogin_eq():
+	assert ClientLogin('admin', '') == ClientLogin('admin', '')
+	assert ClientLogin('admin', '') != ClientLogin('spam', '')
+	assert ClientLogin('admin', '') != ClientLogin('admin', 'spam')
+	assert ClientLogin('admin', '') != Ellipsis
+ 
 def test_ClientLogin_topackets():
 	p, = tuple(ClientLogin('admin', '').topackets(MockConnection()))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x00\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xe8\x03\x5F\x00\x00\x00'
-	                      b'{"LoginType": "DVRIP-Web", '
-	                      b'"UserName": "admin", '
+	                      b'{"UserName": "admin", '
 	                      b'"PassWord": "tlJwpbo6", '
-	                      b'"EncryptType": "MD5"}'
+	                      b'"EncryptType": "MD5", '
+	                      b'"LoginType": "DVRIP-Web"}'
 	                      b'\x0A\x00')
 
 def test_ClientLogin_topackets_chunked():
 	p, q = tuple(ClientLogin('a'*16384, '').topackets(MockConnection()))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x00\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x02\x00\xe8\x03\x00\x40\x00\x00'
-	                      b'{"LoginType": "DVRIP-Web", '
-	                      b'"UserName": "' + b'a' * (16384 - 40))
+	                      b'{"UserName": "' + b'a' * (16384 - 14))
 	assert (q.encode() == b'\xFF\x01\x00\x00\x00\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x02\x01\xe8\x03\x5A\x00\x00\x00' +
-	                      b'a' * 40 + b'", '
+	                      b'a' * 14 + b'", '
 	                      b'"PassWord": "tlJwpbo6", '
-	                      b'"EncryptType": "MD5"}'
-	                      b'\x0A\x00')
+	                      b'"EncryptType": "MD5", '
+	                      b'"LoginType": "DVRIP-Web"}\x0A\x00')
+
+def test_ClientLogin_frompackets_invalid():
+	packet = p = Packet(0x57, 0, 1000,
+	                    b'{"UserName": "admin", "PassWord": "tlJwpbo6", '
+	                    b'"EncryptType": "SPAM", "LoginType": "DVRIP-Web"}'
+	                    b'\x0A\x00',
+	                    fragments=0, fragment=0)
+	with raises(DVRIPDecodeError,
+	            match="'SPAM' is not a valid hash function"):
+		ClientLogin.frompackets([packet])
+
+@given(text(), text())
+def test_ClientLogin_forjson_jsonto(username, password):
+	m = ClientLogin(username, password)
+	assert ClientLogin.json_to(m.for_json()) == m
+
+@given(text(), text())
+def test_ClientLogin_forjson_jsonto_forjson(username, password):
+	m = ClientLogin(username, password)
+	assert ClientLogin.json_to(m.for_json()).for_json() == m.for_json()
 
 def test_ClientLoginReply_frompackets():
 	chunks = [b'\xFF\x01\x00\x00\x3F\x00\x00\x00\x00\x00',
@@ -172,13 +200,30 @@ def test_ClientLoginReply_frompackets():
 	          b'"SessionID" : "0x0000003F" }\x0A\x00']
 	n, m = ClientLoginReply.frompackets([Packet.load(_ChunkReader(chunks))])
 	assert n == 0
-	assert (m.timeout == 21 and m.channels == 4 and m.aes is False and
+	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x3F))
 
 def test_ClientLoginReply_fromchunks_empty():
 	with raises(DVRIPDecodeError, match='no data in DVRIP packet'):
 		ClientLoginReply.fromchunks([])
+
+@given(sampled_from(Status), integers(min_value=0, max_value=0xFFFFFFFF),
+       integers(), integers(), integers(), text(), booleans())
+def test_ClientLoginReply_forjson_jsonto(status, id, timeout, channels, views,
+                                         chassis, encrypt):
+	m = ClientLoginReply(status, Session(id), timeout, channels, views,
+	                     chassis, encrypt)
+	assert ClientLoginReply.json_to(m.for_json()) == m
+
+@given(sampled_from(Status), integers(min_value=0, max_value=0xFFFFFFFF),
+       integers(), integers(), integers(), text(), booleans())
+def test_ClientLoginReply_forjson_jsonto_fromjson(status, id, timeout,
+                                                  channels, views, chassis,
+                                                  encrypt):
+	m = ClientLoginReply(status, Session(id), timeout, channels, views,
+	                     chassis, encrypt)
+	assert ClientLoginReply.json_to(m.for_json()).for_json() == m.for_json()
 
 def test_ControlFilter_accept():
 	chunks = [b'\xFF\x01\x00\x00\x3F\x00\x00\x00\x00\x00',
@@ -190,7 +235,7 @@ def test_ControlFilter_accept():
 	replies = ClientLogin.replies(0)
 	(n, m), = replies.accept(Packet.load(_ChunkReader(chunks)))
 	assert n == 0
-	assert (m.timeout == 21 and m.channels == 4 and m.aes is False and
+	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x3F))
 
@@ -208,7 +253,7 @@ def test_ControlFilter_accept_chunked():
 	() = replies.accept(p)
 	(n, m), = replies.accept(q)
 	assert n == 0
-	assert (m.timeout == 21 and m.channels == 4 and m.aes is False and
+	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x3F))
 
@@ -283,6 +328,16 @@ def test_ClientLogout_topackets():
 	                      b'{"Name": "admin", "SessionID": "0x0000005F"}'
 	                      b'\x0A\x00')
 
+@given(text(), integers(min_value=0, max_value=0xFFFFFFFF))
+def test_ClientLogout_forjson_jsonto(username, id):
+	m = ClientLogout(username, Session(id))
+	assert ClientLogout.json_to(m.for_json()) == m
+
+@given(text(), integers(min_value=0, max_value=0xFFFFFFFF))
+def test_ClientLogout_forjson_jsonto_forjson(username, id):
+	m = ClientLogout(username, Session(id))
+	assert ClientLogout.json_to(m.for_json()).for_json() == m.for_json()
+
 def test_ClientLogoutReply_accept():
 	data = (b'\xFF\x01\x00\x00\x5A\x00\x00\x00\x00\x00'
 	        b'\x00\x00\x00\x00\xeb\x03\x3A\x00\x00\x00'
@@ -293,3 +348,16 @@ def test_ClientLogoutReply_accept():
 	assert n == 0
 	assert (m.username == "" and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x59))
+
+@given(sampled_from(Status), text(),
+       integers(min_value=0, max_value=0xFFFFFFFF))
+def test_ClientLogoutReply_forjson_jsonto(status, username, id):
+	m = ClientLogoutReply(status, username, Session(id))
+	assert ClientLogoutReply.json_to(m.for_json()) == m
+
+@given(sampled_from(Status), text(),
+       integers(min_value=0, max_value=0xFFFFFFFF))
+def test_ClientLogoutReply_forjson_jsonto_forjson(status, username, id):
+	m = ClientLogoutReply(status, username, Session(id))
+	assert (ClientLogoutReply.json_to(m.for_json()).for_json() ==
+	        m.for_json())

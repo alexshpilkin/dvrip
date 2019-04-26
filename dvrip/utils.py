@@ -11,6 +11,11 @@ def pun(attrs):
 	frame = currentframe().f_back
 	return {attr: frame.f_locals[attr] for attr in attrs}
 
+def eq(type, lhs, rhs):  # pylint: disable=redefined-builtin
+	if not isinstance(rhs, type):
+		return NotImplemented
+	return all(getattr(lhs, attr) == getattr(rhs, attr)
+	           for attr in type.__slots__)
 
 def checkbool(json, description):
 	if not isinstance(json, bool):

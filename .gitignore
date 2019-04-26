@@ -1,8 +1,9 @@
 .coverage
+.hypothesis
 __pycache__
-*,cover
 build
 dist
+*,cover
 *.egg-info
 *.pyc
 *.pyo

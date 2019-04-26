@@ -4,7 +4,7 @@ from json    import dumps, load
 from string  import hexdigits
 from .errors import DVRIPDecodeError
 from .packet import Packet
-from .utils  import init as _init
+from .utils  import eq as _eq, init as _init
 
 __all__ = ('Session', 'Status', 'ControlMessage', 'ControlFilter')
 
@@ -39,7 +39,7 @@ class Session(object):
 		return 'Session(0x{:08X})'.format(self.id)
 
 	def __eq__(self, other):
-		return isinstance(other, Session) and self.id == other.id
+		return _eq(Session, self, other)
 
 	def __hash__(self):
 		return hash(self.id)
