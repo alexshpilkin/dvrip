@@ -204,6 +204,12 @@ class Status(Enum):
 		self._value_ = code
 		return self
 
+	def __repr__(self):
+		return '{}({})'.format(type(self).__qualname__, self._value_)
+
+	def __str__(self):
+		return self.message
+
 	def __bool__(self):
 		return self.success
 
@@ -217,9 +223,6 @@ class Status(Enum):
 		except ValueError:
 			raise DVRIPError('{!r} is not a valid status code'
 			                 .format(json))
-
-	def __repr__(self):
-		return '{}({})'.format(type(self).__qualname__, self._value_)
 
 	OK       = (100, True,  'OK')
 	ERROR    = (101, False, 'Unknown error')

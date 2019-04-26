@@ -72,6 +72,14 @@ def test_Packet_decode_invalid():
 		Packet.decode(bytes.fromhex('ff010000cdab0000fade0000'
 		                            '123456780140000068656c6c6f'))
 
+def test_Status_repr():
+	assert repr(Status.OK) == 'Status(100)'
+	assert repr(Status.ERROR) == 'Status(101)'
+
+def test_Status_str():
+	assert str(Status.OK) == 'OK'
+	assert str(Status.ERROR) == 'Unknown error'
+
 def test_Status_bool():
 	assert Status(100)
 	assert not Status(101)
@@ -84,10 +92,6 @@ def test_Status_json_to():
 	assert Status.json_to(100) == Status(100)
 	with raises(DVRIPError, match="'SPAM' is not a valid status code"):
 		Status.json_to('SPAM')
-
-def test_Status_repr():
-	assert repr(Status.OK) == 'Status(100)'
-	assert repr(Status.ERROR) == 'Status(101)'
 
 def test_Session_repr():
 	assert repr(Session(0x42)) == 'Session(0x00000042)'
