@@ -1,7 +1,11 @@
 from io     import BytesIO
 from pytest import raises
 
-from dvrip import *
+from dvrip         import *
+from dvrip.control import _ChunkReader
+from dvrip.packet  import _mirrorproperty
+from dvrip.utils   import *
+
 
 def test_md5crypt_empty():
 	assert md5crypt(b'') == b'tlJwpbo6'
@@ -35,7 +39,7 @@ def test_popkey_invalid():
 
 def test_mirrorproperty():
 	class Foo:
-		y = mirrorproperty('x')
+		y = _mirrorproperty('x')
 	foo = Foo()
 	foo.y = 'hello'
 	assert foo.x == 'hello'
@@ -45,7 +49,7 @@ def test_mirrorproperty():
 	assert foo.y == 'goodbye'
 
 def test_ChunkReader():
-	r = ChunkReader([b'hel', b'lo'])
+	r = _ChunkReader([b'hel', b'lo'])
 	assert r.readable()
 	assert r.readall() == b'hello'
 
@@ -163,7 +167,7 @@ def test_ClientLoginReply_frompackets():
 	          b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	          b'"ExtraChannel" : 0, "Ret" : 100, '
 	          b'"SessionID" : "0x0000003F" }\x0A\x00']
-	n, m = ClientLoginReply.frompackets([Packet.load(ChunkReader(chunks))])
+	n, m = ClientLoginReply.frompackets([Packet.load(_ChunkReader(chunks))])
 	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
 	        m.views == 0 and m.status == Status(100) and
@@ -181,7 +185,7 @@ def test_ControlFilter_accept():
 	          b'"ExtraChannel" : 0, "Ret" : 100, '
 	          b'"SessionID" : "0x0000003F" }\x0A\x00']
 	replies = ClientLogin.replies()
-	(n, m), = replies.accept(Packet.load(ChunkReader(chunks)))
+	(n, m), = replies.accept(Packet.load(_ChunkReader(chunks)))
 	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
 	        m.views == 0 and m.status == Status(100) and
