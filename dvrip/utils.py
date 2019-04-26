@@ -2,7 +2,7 @@ from inspect import currentframe
 from .errors import DVRIPError
 
 
-def init(type, obj=None):
+def init(type, obj=None):  # pylint: disable=redefined-builtin
 	frame = currentframe().f_back
 	for attr in type.__slots__:
 		setattr(obj, attr, frame.f_locals[attr])

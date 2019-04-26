@@ -23,11 +23,11 @@ class ClientLogin(ControlMessage):
 
 	__slots__ = ('username', 'password', 'service')
 
-	def __init__(self, username, password, service='DVRIP-Web'):
+	def __init__(self, username, password, service='DVRIP-Web'):  # pylint: disable=unused-argument
 		_init(ClientLogin, self)
 
 	@classmethod
-	def replies(self):
+	def replies(cls):
 		return ControlFilter(ClientLoginReply)
 
 	def for_json(self):
@@ -44,12 +44,14 @@ class ClientLoginReply(ControlMessage):
 	__slots__ = ('status', 'session', 'timeout', 'channels', 'views',
 	             'chassis', 'aes')
 
-	def __init__(self, status, session, timeout, channels, views, chassis,
-	             aes):
+	def __init__(self, status, session, timeout,  # pylint: disable=unused-argument,too-many-arguments
+	             channels, views, chassis, aes):  # pylint: disable=unused-argument,too-many-arguments
 		_init(ClientLoginReply, self)
 
 	@classmethod
 	def json_to(cls, json):
+		# pylint: disable=unused-variable
+
 		_checkdict(json, 'client login reply')
 		status   = Status.json_to(_popint(json, 'Ret', 'status code'))
 		session  = Session.json_to(_popkey(json, 'SessionID', 'session ID'))
@@ -69,11 +71,11 @@ class ClientLogout(ControlMessage):
 	# FIXME 'username' unused?
 	__slots__ = ('username', 'session')
 
-	def __init__(self, username, session):
+	def __init__(self, username, session):  # pylint: disable=unused-argument
 		_init(ClientLogout, self)
 
 	@classmethod
-	def replies(self):
+	def replies(cls):
 		return ControlFilter(ClientLogoutReply)
 
 	def for_json(self):
@@ -87,11 +89,13 @@ class ClientLogoutReply(ControlMessage):
 	# FIXME 'username' unused?
 	__slots__ = ('status', 'username', 'session')
 
-	def __init__(self, status, username, session):
+	def __init__(self, status, username, session):  # pylint: disable=unused-argument
 		_init(ClientLogoutReply, self)
 
 	@classmethod
 	def json_to(cls, json):
+		# pylint: disable=unused-variable
+
 		_checkdict(json, 'client logout reply')
 		status   = Status.json_to(_popint(json, 'Ret', 'status code'))
 		username = _popstr(json, 'Name',      'username')

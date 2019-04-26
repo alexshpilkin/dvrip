@@ -8,9 +8,9 @@ __all__ = ('Packet',)
 
 class _mirrorproperty:
 	__slots__ = ('attr',)
-	def __init__(self, attr):
+	def __init__(self, attr):  # pylint: disable=unused-argument
 		_init(_mirrorproperty, self)
-	def __get__(self, obj, type=None):
+	def __get__(self, obj, type=None):  # pylint: disable=redefined-builtin
 		return getattr(obj, self.attr)
 	def __set__(self, obj, value):
 		return setattr(obj, self.attr, value)
@@ -18,18 +18,18 @@ class _mirrorproperty:
 		return delattr(obj, self.attr)
 
 
-def _read(fp, length):
+def _read(file, length):
 	data = bytearray(length)
 	buf  = memoryview(data)
 	while buf:
-		buf = buf[fp.readinto(buf):]
+		buf = buf[file.readinto(buf):]
 	return data
 
 
-def _write(fp, data):
+def _write(file, data):
 	buf = memoryview(data)
 	while buf:
-		buf = buf[fp.write(buf):]
+		buf = buf[file.write(buf):]
 
 
 class Packet(object):
@@ -41,8 +41,10 @@ class Packet(object):
 	__slots__ = ('session', 'number', '_fragment0', '_fragment1', 'type',
 	             'payload')
 
-	def __init__(self, session=None, number=None, type=None, payload=None,
-	             *, fragments=None, channel=None, fragment=None, end=None):
+	def __init__(self, session=None, number=None,  # pylint: disable=unused-argument
+	             type=None, payload=None, *,       # pylint: disable=unused-argument, redefined-builtin
+	             fragments=None, channel=None,     # pylint: disable=unused-argument
+	             fragment=None, end=None):         # pylint: disable=unused-argument
 		super().__init__()
 
 		assert (fragments is None and fragment is None or
@@ -65,7 +67,7 @@ class Packet(object):
 	def size(self):
 		return self.__STRUCT.size + self.length
 
-	def dump(self, fp):
+	def dump(self, file):
 		assert (self.session is not None and
 		        self.number is not None and
 		        self._fragment0 is not None and
@@ -79,11 +81,11 @@ class Packet(object):
 
 		struct  = self.__STRUCT
 		payload = self.payload
-		_write(fp, struct.pack(self.MAGIC, self.VERSION,
-		                       self.session, self.number,
-		                       self._fragment0, self._fragment1,
-		                       self.type, len(payload)))
-		_write(fp, payload)
+		_write(file, struct.pack(self.MAGIC, self.VERSION,
+		                         self.session, self.number,
+		                         self._fragment0, self._fragment1,
+		                         self.type, len(payload)))
+		_write(file, payload)
 
 	def encode(self):
 		buf = BytesIO()
@@ -91,18 +93,18 @@ class Packet(object):
 		return buf.getvalue()
 
 	@classmethod
-	def load(cls, fp):
+	def load(cls, file):
 		struct = cls.__STRUCT
-		(magic, version, session, number, _fragment0, _fragment1,
-		 type, length) = \
-		 	struct.unpack(_read(fp, struct.size))
+		header = struct.unpack(_read(file, struct.size))
+		(magic, version, session, number,
+		 _fragment0, _fragment1, type, length) = header  # pylint: disable=redefined-builtin
 		if magic != cls.MAGIC:
 			raise DVRIPError('invalid DVRIP magic')
 		if version != cls.VERSION:
 			raise DVRIPError('unknown DVRIP version')
 		if length > cls.MAXLEN:
 			raise DVRIPError('DVRIP packet too long')
-		payload = _read(fp, length)
+		payload = _read(file, length)
 		return cls(session=session, number=number,
 		           fragments=_fragment0, fragment=_fragment1,
 		           type=type, payload=payload)

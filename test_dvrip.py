@@ -1,6 +1,6 @@
-from io     import BytesIO
 from pytest import raises
 
+# pylint: disable=wildcard-import,unused-wildcard-import
 from dvrip         import *
 from dvrip.control import _ChunkReader
 from dvrip.packet  import _mirrorproperty
@@ -38,15 +38,15 @@ def test_popkey_invalid():
 		popkey({'spam': 'sausages'}, 'ham', 'test')
 
 def test_mirrorproperty():
-	class Foo:
+	class Test:  # pylint: disable=too-few-public-methods
 		y = _mirrorproperty('x')
-	foo = Foo()
-	foo.y = 'hello'
-	assert foo.x == 'hello'
-	del foo.y
-	assert getattr(foo, 'x', None) is None
-	foo.x = 'goodbye'
-	assert foo.y == 'goodbye'
+	test = Test()
+	test.y = 'hello'
+	assert test.x == 'hello'
+	del test.y
+	assert getattr(test, 'x', None) is None
+	test.x = 'goodbye'
+	assert test.y == 'goodbye'
 
 def test_ChunkReader():
 	r = _ChunkReader([b'hel', b'lo'])
@@ -85,14 +85,17 @@ def test_Status_str():
 	assert str(Status.ERROR) == 'Unknown error'
 
 def test_Status_bool():
+	# pylint: disable=no-value-for-parameter
 	assert Status(100)
 	assert not Status(101)
 
 def test_Status_for_json():
+	# pylint: disable=no-value-for-parameter
 	assert Status(100).for_json() == 100
 	assert Status(101).for_json() == 101
 
 def test_Status_json_to():
+	# pylint: disable=no-value-for-parameter
 	assert Status.json_to(100) == Status(100)
 	with raises(DVRIPError, match="'SPAM' is not a valid status code"):
 		Status.json_to('SPAM')
@@ -118,7 +121,7 @@ def test_Session_json_to():
 	with raises(DVRIPError, match="'0x59AE' is not a valid session ID"):
 		Session.json_to('0x59AE')
 
-class MockSequence(object):
+class MockSequence(object):  # pylint: disable=too-few-public-methods
 	def __init__(self, session, number):
 		self.session = session
 		self.number  = number
@@ -127,7 +130,7 @@ class MockSequence(object):
 		packet = Packet(self.session.id, self.number, *args, **named)
 		return packet
 
-class MockConnection(object):
+class MockConnection(object):  # pylint: disable=too-few-public-methods
 	def __init__(self, session=Session(0), number=0):
 		self.session = session
 		self.number  = number
@@ -169,8 +172,8 @@ def test_ClientLoginReply_frompackets():
 	          b'"SessionID" : "0x0000003F" }\x0A\x00']
 	n, m = ClientLoginReply.frompackets([Packet.load(_ChunkReader(chunks))])
 	assert n == 0
-	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
-	        m.views == 0 and m.status == Status(100) and
+	assert (m.timeout == 21 and m.channels == 4 and m.aes is False and
+	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x3F))
 
 def test_ClientLoginReply_fromchunks_empty():
@@ -187,8 +190,8 @@ def test_ControlFilter_accept():
 	replies = ClientLogin.replies()
 	(n, m), = replies.accept(Packet.load(_ChunkReader(chunks)))
 	assert n == 0
-	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
-	        m.views == 0 and m.status == Status(100) and
+	assert (m.timeout == 21 and m.channels == 4 and m.aes is False and
+	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x3F))
 
 def test_ControlFilter_accept_chunked():
@@ -205,8 +208,8 @@ def test_ControlFilter_accept_chunked():
 	() = replies.accept(p)
 	(n, m), = replies.accept(q)
 	assert n == 0
-	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
-	        m.views == 0 and m.status == Status(100) and
+	assert (m.timeout == 21 and m.channels == 4 and m.aes is False and
+	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x3F))
 
 def test_ControlFilter_accept_wrong_type():
@@ -288,5 +291,5 @@ def test_ClientLogoutReply_accept():
 	replies = ClientLogout.replies()
 	(n, m), = replies.accept(Packet.decode(data))
 	assert n == 0
-	assert (m.username == "" and m.status == Status(100) and
+	assert (m.username == "" and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x59))

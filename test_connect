@@ -2,7 +2,8 @@
 
 from socket     import AF_INET, SOCK_STREAM, socket as Socket
 from sys        import argv
-from test_dvrip import *
+from test_dvrip import *  # pylint: disable=wildcard-import,unused-wildcard-import
+
 
 socket = Socket(AF_INET, SOCK_STREAM)
 socket.connect((argv[1], 34567))

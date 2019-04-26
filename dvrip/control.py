@@ -32,7 +32,7 @@ class _ChunkReader(RawIOBase):
 class Session(object):
 	__slots__ = ('id',)
 
-	def __init__(self, id):
+	def __init__(self, id):  # pylint: disable=unused-argument,redefined-builtin
 		_init(Session, self)
 
 	def __repr__(self):
@@ -66,7 +66,7 @@ class Status(Enum):
 		self.code    = code
 		self.success = success
 		self.message = message
-		self._value_ = code
+		self._value_ = code  # pylint: disable=protected-access
 		return self
 
 	def __repr__(self):
@@ -84,11 +84,12 @@ class Status(Enum):
 	@classmethod
 	def json_to(cls, json):
 		try:
-			return cls(json)
+			return cls(json)  # pylint: disable=no-value-for-parameter
 		except ValueError:
 			raise DVRIPError('{!r} is not a valid status code'
 			                 .format(json))
 
+	# pylint: disable=line-too-long
 	OK       = (100, True,  'OK')
 	ERROR    = (101, False, 'Unknown error')
 	VERSION  = (102, False, 'Invalid version')
@@ -154,7 +155,7 @@ class ControlMessage(object):
 		length   = len(chunks)
 		sequence = conn.sequence()
 		if length == 1:
-			chunk = next(iter(chunks))
+			chunk = next(iter(chunks))  # pylint: disable=stop-iteration-return
 			yield sequence.packet(self.type, chunk, fragments=0,
 			                      fragment=0)
 		else:
@@ -183,10 +184,11 @@ class ControlMessage(object):
 		return cls.json_to(load(_ChunkReader(chunks), encoding='latin-1'))
 
 
-class ControlFilter(object):
+class ControlFilter(object):  # pylint: disable=too-few-public-methods
 	__slots__ = ('cls', 'number', 'count', 'limit', 'packets')
 
-	def __init__(self, cls):
+	def __init__(self, cls):  # pylint: disable=unused-argument
+		#pylint: disable=unused-variable
 		number  = None
 		count   = 0
 		limit   = 0
@@ -215,7 +217,6 @@ class ControlFilter(object):
 		assert self.count < self.limit
 		self.packets[packet.fragment] = packet
 		self.count += 1
-		if self.count == self.limit:
-			return (self.cls.frompackets(self.packets),)
-		else:
+		if self.count < self.limit:
 			return ()
+		return (self.cls.frompackets(self.packets),)
