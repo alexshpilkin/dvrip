@@ -21,12 +21,6 @@ def test_checkstr_invalid():
 	with raises(DVRIPError, match='not a string in test'):
 		checkstr(None, 'test')
 
-def test_checkhex_invalid():
-	with raises(DVRIPError, match='not a hex string in test'):
-		checkhex('spam', 'test')
-	with raises(DVRIPError, match='not a hex string in test'):
-		checkhex('0xSPAM', 'test')
-
 def test_checkdict_invalid():
 	with raises(DVRIPError, match='not a dictionary in test'):
 		checkdict(None, 'test')
@@ -88,12 +82,33 @@ def test_Status_for_json():
 
 def test_Status_json_to():
 	assert Status.json_to(100) == Status(100)
-	with raises(DVRIPError, match="'SPAM' is not a valid DVRIP status"):
+	with raises(DVRIPError, match="'SPAM' is not a valid status code"):
 		Status.json_to('SPAM')
 
 def test_Status_repr():
 	assert repr(Status.OK) == 'Status(100)'
 	assert repr(Status.ERROR) == 'Status(101)'
+
+def test_Session_repr():
+	assert repr(Session(0x42)) == 'Session(0x00000042)'
+	assert repr(Session(0x57)) == 'Session(0x00000057)'
+
+def test_Session_hash():
+	assert hash(Session(0x42)) == hash(0x42)
+	assert hash(Session(0x57)) == hash(0x57)
+
+def test_Session_for_json():
+	assert Session(0x42).for_json() == '0x00000042'
+	assert Session(0x57).for_json() == '0x00000057'
+
+def test_Session_json_to():
+	assert Session.json_to('0x00000057') == Session(0x57)
+	with raises(DVRIPError, match="'SPAM' is not a valid session ID"):
+		Session.json_to('SPAM')
+	with raises(DVRIPError, match="'0xSPAM' is not a valid session ID"):
+		Session.json_to('0xSPAM')
+	with raises(DVRIPError, match="'0x59AE' is not a valid session ID"):
+		Session.json_to('0x59AE')
 
 class MockSequence(object):
 	def __init__(self, session, number):
@@ -101,11 +116,11 @@ class MockSequence(object):
 		self.number  = number
 
 	def packet(self, *args, **named):
-		packet = Packet(self.session, self.number, *args, **named)
+		packet = Packet(self.session.id, self.number, *args, **named)
 		return packet
 
 class MockConnection(object):
-	def __init__(self, session=0, number=0):
+	def __init__(self, session=Session(0), number=0):
 		self.session = session
 		self.number  = number
 
@@ -147,7 +162,8 @@ def test_ClientLoginReply_frompackets():
 	n, m = ClientLoginReply.frompackets([Packet.load(ChunkReader(chunks))])
 	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
-	        m.views == 0 and m.status == Status(100) and m.session == 0x3F)
+	        m.views == 0 and m.status == Status(100) and
+	        m.session == Session(0x3F))
 
 def test_ClientLoginReply_fromchunks_empty():
 	with raises(DVRIPError, match='no data in DVRIP packet'):
@@ -164,7 +180,8 @@ def test_ControlFilter_accept():
 	(n, m), = replies.accept(Packet.load(ChunkReader(chunks)))
 	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
-	        m.views == 0 and m.status == Status(100) and m.session == 0x3F)
+	        m.views == 0 and m.status == Status(100) and
+	        m.session == Session(0x3F))
 
 def test_ControlFilter_accept_chunked():
 	p = Packet(0x3F, 0, 1001,
@@ -181,7 +198,8 @@ def test_ControlFilter_accept_chunked():
 	(n, m), = replies.accept(q)
 	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.aes == False and
-	        m.views == 0 and m.status == Status(100) and m.session == 0x3F)
+	        m.views == 0 and m.status == Status(100) and
+	        m.session == Session(0x3F))
 
 def test_ControlFilter_accept_wrong_type():
 	p = Packet(0x3F, 0, 1002,
@@ -247,7 +265,8 @@ def test_ControlFilter_accept_invalid_overlap():
 		replies.accept(q)
 
 def test_ClientLogout_topackets():
-	p, = ClientLogout('admin', 0x5F).topackets(MockConnection(session=0x5F))
+	p, = (ClientLogout('admin', Session(0x5F))
+	     .topackets(MockConnection(session=Session(0x5F))))
 	assert p.encode() == (b'\xFF\x01\x00\x00\x5F\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xEA\x03\x2E\x00\x00\x00'
 	                      b'{"Name": "admin", "SessionID": "0x0000005F"}'
@@ -262,4 +281,4 @@ def test_ClientLogoutReply_accept():
 	(n, m), = replies.accept(Packet.decode(data))
 	assert n == 0
 	assert (m.username == "" and m.status == Status(100) and
-	        m.session == 0x59)
+	        m.session == Session(0x59))

@@ -35,8 +35,6 @@ def md5crypt(password):
 	return bytes(MD5MAGIC[(a+b) % len(MD5MAGIC)]
 	             for a, b in zip(mdfive[0::2], mdfive[1::2]))[:8]
 
-SESSION = '0x{:08X}'
-
 
 class mirrorproperty:
 	__slots__ = ('attr',)
@@ -86,12 +84,6 @@ def checkstr(json, description):
 		raise DVRIPError('not a string in {}'.format(description))
 	return json
 
-def checkhex(json, description):
-	checkstr(json, description)
-	if json[:2] != '0x' or not all(c in hexdigits for c in json[2:]):
-		raise DVRIPError('not a hex string in {}'.format(description))
-	return int(json[2:], 16)
-
 def checkdict(json, description):
 	if not isinstance(json, dict):
 		raise DVRIPError('not a dictionary in {}'.format(description))
@@ -115,9 +107,6 @@ def popint(json, key, description):
 
 def popstr(json, key, description):
 	return checkstr(popkey(json, key, description), description)
-
-def pophex(json, key, description):
-	return checkhex(popkey(json, key, description), description)
 
 
 class Packet(object):
@@ -167,10 +156,10 @@ class Packet(object):
 
 		struct  = self.__STRUCT
 		payload = self.payload
-		_write(fp, struct.pack(self.MAGIC, self.VERSION, self.session,
-		                       self.number, self._fragment0,
-		                       self._fragment1, self.type,
-		                       len(payload)))
+		_write(fp, struct.pack(self.MAGIC, self.VERSION,
+		                       self.session, self.number,
+		                       self._fragment0, self._fragment1,
+		                       self.type, len(payload)))
 		_write(fp, payload)
 
 	def encode(self):
@@ -226,7 +215,7 @@ class Status(Enum):
 		try:
 			return cls(json)
 		except ValueError:
-			raise DVRIPError('{!r} is not a valid DVRIP status'
+			raise DVRIPError('{!r} is not a valid status code'
 			                 .format(json))
 
 	def __repr__(self):
@@ -287,6 +276,32 @@ class Status(Enum):
 	READING  = (606, False, 'Configuration read failed')
 	NOIMPORT = (607, False, 'Configuration not found')
 	SYNTAX   = (608, False, 'Illegal configuration syntax')
+
+
+class Session(object):
+	def __init__(self, id):
+		self.id = id
+
+	def __repr__(self):
+		return 'Session(0x{:08X})'.format(self.id)
+
+	def __eq__(self, other):
+		return isinstance(other, Session) and self.id == other.id
+
+	def __hash__(self):
+		return hash(self.id)
+
+	def for_json(self):
+		return '0x{:08X}'.format(self.id)
+
+	@classmethod
+	def json_to(cls, json):
+		checkstr(json, 'session ID')
+		if (json[:2] != '0x' or len(json) != 10 or
+		    not all(c in hexdigits for c in json[2:])):
+			raise DVRIPError('{!r} is not a valid session ID'
+			                 .format(json))
+		return cls(id=int(json[2:], 16))
 
 
 class ControlMessage(object):
@@ -398,7 +413,7 @@ class ClientLoginReply(ControlMessage):
 	def json_to(cls, json):
 		checkdict(json, 'client login reply')
 		status   = Status.json_to(popint(json, 'Ret', 'status code'))
-		session  = pophex(json, 'SessionID',     'session number')
+		session  = Session.json_to(popkey(json, 'SessionID', 'session ID'))
 		timeout  = popint(json, 'AliveInterval', 'timeout value')
 		channels = popint(json, 'ChannelNum',    'channel count')
 		views    = popint(json, 'ExtraChannel',  'view count')
@@ -424,7 +439,7 @@ class ClientLogout(ControlMessage):
 
 	def for_json(self):
 		return {'Name':      self.username,
-		        'SessionID': SESSION.format(self.session)}
+		        'SessionID': self.session.for_json()}
 
 
 class ClientLogoutReply(ControlMessage):
@@ -441,7 +456,7 @@ class ClientLogoutReply(ControlMessage):
 		checkdict(json, 'client logout reply')
 		status   = Status.json_to(popint(json, 'Ret', 'status code'))
 		username = popstr(json, 'Name',      'username')
-		session  = pophex(json, 'SessionID', 'session number')
+		session  = Session.json_to(popstr(json, 'SessionID', 'session ID'))
 		checkempty(json, 'client logout reply')
 
 		return cls(**pun(ClientLogoutReply.__slots__))
