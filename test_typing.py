@@ -3,7 +3,7 @@ from hypothesis.strategies \
                 import binary, integers as ints, sampled_from, text
 from pytest     import raises  # type: ignore
 from string     import hexdigits
-from typing     import Type, TypeVar
+from typing     import Type, TypeVar, no_type_check
 
 from dvrip.errors import DVRIPDecodeError
 from dvrip.typing import Integer, Member, Object, Value, member
@@ -115,18 +115,33 @@ class Example(Object):
 	hex: member[str]     = member('Hex', fromhex, tohex, default=b'\x57')
 
 class BigExample(Example):
-	# not a field
-	type = 101
+	# a descriptor but not a field
+	@property
+	def room(self):
+		return 101
 	# note the single quote
-	int_: member[Integer] = member("Int'", Integer.json_to)
+	int_: member[Integer] = member("Int'")
 	hex_: member[str]     = member("Hex'", fromhex, tohex, default=b'\x42')
 
 class NestedExample(Object):
-	int: member[Integer] = member('Int', Integer.json_to)
-	rec: member[Example] = member('Rec', Example.json_to)
+	int = member('Int', Integer.json_to)  # type: ignore
+	rec: member[Example] = member('Rec')
+
+class ConflictExample(Object):
+	int1: member[Integer] = member('Conflict')
+	int2: member[Integer] = member('Conflict')
 
 def test_Object():
 	assert issubclass(Object, Value)
+
+@no_type_check
+def test_Member_nojsonto():
+	with raises(TypeError, match='no type or conversion specified'):
+		class FailingExample(Example):
+			bad = member('Bad')
+	with raises(TypeError, match='no type or conversion specified'):
+		class FailingExample(Example):
+			bad: 3 = member('Bad')
 
 @given(integers(), binary())
 def test_Object_get(i, b):
@@ -161,9 +176,11 @@ def test_Object_eq(i, b, j, c):
 	         (i == j and b == c))
 	assert Example(i, b) != Ellipsis
 
-@given(integers(), binary())
-def test_Object_forjson(i, b):
+@given(integers(), binary(), integers())
+def test_Object_forjson(i, b, j):
 	assert Example(i, b).for_json() == {'Int': i, 'Hex': b.hex()}
+	with raises(TypeError, match='already set'):
+		ConflictExample(i, j).for_json()
 
 @given(ints(), hextext())
 def test_Object_jsonto(i, h):

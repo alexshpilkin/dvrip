@@ -1,8 +1,9 @@
 from abc         import ABCMeta, abstractmethod
 from collections import OrderedDict
 from sys         import intern
-from typing      import Any, Callable, Generic, MutableMapping, Tuple
-from typing      import Type, TypeVar, Union
+from typing      import Any, Callable, Generic, MutableMapping, NamedTuple, \
+                        Optional, Tuple, TYPE_CHECKING, Type, TypeVar, Union, \
+                        get_type_hints
 from .errors     import DVRIPDecodeError
 
 T = TypeVar('T')
@@ -69,8 +70,19 @@ class Member(metaclass=ABCMeta):
 	__name__: str
 
 	@abstractmethod
-	def __set_name__(self, _type: Type['Object'], name: str) -> None:
+	def __set_name__(self, _type: 'ObjectMeta', name: str) -> None:
 		self.__name__ = name
+
+	@abstractmethod
+	def push(self,
+	         push: Callable[[str, object], None],
+	         value: Any
+	        ) -> None:  # FIXME
+		pass
+
+	@abstractmethod
+	def pop(self, pop: Callable[[str], object]) -> Any:  # FIXME
+		raise NotImplementedError  # pragma: no cover
 
 	@classmethod
 	def __subclasshook__(cls, other: Type) -> bool:
@@ -90,12 +102,12 @@ class Member(metaclass=ABCMeta):
 
 _SENTINEL = object()
 
-class member(Member, Generic[T]):
+class member(Generic[T], Member):
 	__slots__ = ('key', 'json_to', 'for_json', 'default')
 
 	def __init__(self,
 	             key:      str,
-	             json_to:  Callable[[object], T],
+	             json_to:  Optional[Callable[[object], T]] = None,
 	             for_json: Callable[[T], object] = _for_json,
 	             default = _SENTINEL
 	            ) -> None:
@@ -105,8 +117,24 @@ class member(Member, Generic[T]):
 		if default is not _SENTINEL:
 			self.default: str = default
 
-	def __set_name__(self, type: Type['Object'], name: str) -> None:  # pylint: disable=redefined-builtin, useless-super-delegation
+	class _Annotation(NamedTuple):
+		json_to: Callable[[object], Any]
+
+	if not TYPE_CHECKING:
+		@classmethod
+		def __class_getitem__(cls, type):  # pylint: disable=redefined-builtin
+			return (cls._Annotation(type.json_to)
+			        if issubclass(type, Value) else None)
+
+	def __set_name__(self, type: 'ObjectMeta', name: str) -> None:  # pylint: disable=redefined-builtin
 		super().__set_name__(type, name)
+		if self.json_to is None:
+			ann = get_type_hints(type).get(name, None)
+			if not isinstance(ann, self._Annotation):
+				raise TypeError('no type or conversion '
+				                'specified for member {!r}'
+				                .format(name))
+			self.json_to = ann.json_to
 
 	def __get__(self, obj: 'Object', _type: type) -> Union['member[T]', T]:
 		if obj is None:
@@ -116,35 +144,25 @@ class member(Member, Generic[T]):
 	def __set__(self, obj: 'Object', value: T) -> None:
 		return setattr(obj._values_, self.__name__, value)  # pylint: disable=protected-access
 
+	def push(self, push, value):
+		super().push(push, value)
+		push(self.key, self.for_json(value))
 
-def _obj(obj: object) -> dict:
-	if not isinstance(obj, dict):
-		raise DVRIPDecodeError('not an object')
-	return dict(obj)
-
-
-def _pop(obj: dict, key: str) -> object:
-	assert isinstance(obj, dict)
-	try:
-		return obj.pop(key)
-	except KeyError:
-		raise DVRIPDecodeError('no member {!r}'.format(key))
-
-
-def _nil(obj: dict) -> None:
-	assert isinstance(obj, dict)
-	if not obj:
-		return
-	key, _ = obj.popitem()
-	raise DVRIPDecodeError('extra member {!r}'.format(key))
+	def pop(self, pop):
+		return self.json_to(pop(self.key))
 
 
 class ObjectMeta(ABCMeta):
+	_begin_:  Callable[['ObjectMeta', object], dict]
+	_pusher_: Callable[['ObjectMeta', dict], Callable[[str, object], None]]
+	_popper_: Callable[['ObjectMeta', dict], Callable[[str], object]]
+	_end_:    Callable[['ObjectMeta', dict], None]
+
 	def __new__(cls, name, bases, namespace, **kwargs) -> 'ObjectMeta':
-		names: MutableMapping[str, Any] = OrderedDict()
+		names: MutableMapping[str, Member] = OrderedDict()
 		for mname, value in namespace.items():
 			if (_isunder(mname) or
-			    not hasattr(value, '__set_name__') or
+			    not isinstance(value, Member) or
 			    not hasattr(value, 'key')):
 				# Pytest-cov mistakenly thinks this branch is
 				# not taken.  Place a print statement here to
@@ -184,9 +202,11 @@ class ObjectMeta(ABCMeta):
 		initbody = []
 		initvals = {}
 		forbody  = []
-		forvals  = {}
+		forvals  = {'_pusher_': self._pusher_}
 		tobody   = []
-		tovals   = {'_obj_': _obj, '_pop_': _pop, '_nil_': _nil}
+		tovals   = {'_begin_':  self._begin_,
+		            '_popper_': self._popper_,
+		            '_end_':    self._end_}
 		defaults = True
 
 		for mname in reversed(self._members_):
@@ -199,16 +219,14 @@ class ObjectMeta(ABCMeta):
 			initbody.append('\t_self_.{0} = {0}'.format(mname))
 			initvals[mname] = getattr(member, 'default', None)
 
-			key  = '_key_{}_'.format(mname)
-			func = '_func_{}_'.format(mname)
-			forbody.append('\t_datum_[{}] = {}(_self_.{})'
-			               .format(key, func, mname))
-			forvals[func] = member.for_json
-			forvals[key]  = member.key
-			tobody.append('\t\t{}={}(_pop_(_datum_, {})),'
-			              .format(mname, func, key))
-			tovals[func] = member.json_to
-			tovals[key]  = member.key
+			mvalue = '_member_{}_'.format(mname)
+			forbody.append('\t{mvalue}.push(_pusher_(_datum_), '
+			                               '_self_.{mname})'
+			               .format(mname=mname, mvalue=mvalue))
+			forvals[mvalue] = member
+			tobody.append('\t{mname}={mvalue}.pop(_popper_(_datum_)),'
+			              .format(mname=mname, mvalue=mvalue))
+			tovals[mvalue] = member
 
 		initspec.append('_self_')
 		exec('def __init__({}):\n'
@@ -232,11 +250,11 @@ class ObjectMeta(ABCMeta):
 
 		exec('@classmethod\n'
 		     'def _json_to_(_cls_, _datum_):\n'
-		     '\t_datum_ = _obj_(_datum_)\n'
+		     '\t_datum_ = _begin_(_datum_)\n'
 		     '\t_self_ = _cls_(\n'
 		     '{}\n'
 		     '\t)\n'
-		     '\t_nil_(_datum_)\n'
+		     '\t_end_(_datum_)\n'
 		     '\treturn _self_\n'
 		     .format('\n'.join(reversed(tobody))),
 		     tovals)
@@ -275,3 +293,35 @@ class Object(Value, metaclass=ObjectMeta):
 	@classmethod
 	def json_to(cls: Type[O], datum: object) -> O:
 		return cls._json_to_(datum)  # type: ignore
+
+	@staticmethod
+	def _begin_(datum: object) -> dict:
+		if not isinstance(datum, dict):
+			raise DVRIPDecodeError('not an object')
+		return dict(datum)
+
+	@staticmethod
+	def _pusher_(datum: dict) -> Callable[[str, object], None]:
+		def push(key: str, value: object) -> None:
+			if key in datum:
+				raise TypeError('member {!r} already '
+				                'set'.format(key))
+			datum[key] = value
+		return push
+
+	@staticmethod
+	def _popper_(datum: dict) -> Callable[[str], object]:
+		def pop(key: str) -> object:
+			try:
+				return datum.pop(key)
+			except KeyError:
+				raise DVRIPDecodeError('no member {!r}'
+				                       .format(key))
+		return pop
+
+	@staticmethod
+	def _end_(datum: dict) -> None:
+		if not datum:
+			return
+		key, _ = datum.popitem()
+		raise DVRIPDecodeError('extra member {!r}'.format(key))
