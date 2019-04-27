@@ -3,6 +3,23 @@ from sys         import intern
 from .errors     import DVRIPDecodeError
 
 
+class Integer(int):
+	def __repr__(self):
+		return 'Integer({})'.format(self)
+
+	def __str__(self):
+		return str(int(self))
+
+	def for_json(self):
+		return int(self)
+
+	@classmethod
+	def json_to(cls, datum):
+		if not isinstance(datum, int) or isinstance(datum, bool):
+			raise DVRIPDecodeError('not an integer')
+		return cls(datum)
+
+
 def _isunder(name):
 	return len(name) >= 2 and name[0] == name[-1] == '_'
 
