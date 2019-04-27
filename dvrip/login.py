@@ -144,6 +144,7 @@ class ClientLogout(ControlMessage):
 
 		return cls(**_pun(ClientLogout.__slots__))
 
+
 class ClientLogoutReply(ControlMessage):
 	type = 1003
 

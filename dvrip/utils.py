@@ -2,7 +2,7 @@ from inspect import currentframe, getfullargspec
 from .errors import DVRIPDecodeError
 
 
-def init(type, obj):  # pylint: disable=redefined-builtin
+def init(type, obj):  # pylint: disable=redefined-builtin # FIXME remove
 	frame = currentframe().f_back
 	for attr in type.__slots__:
 		setattr(obj, attr, frame.f_locals[attr])
