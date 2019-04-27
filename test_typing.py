@@ -1,12 +1,43 @@
 from hypothesis import given
 from hypothesis.strategies \
                 import binary, integers as ints, sampled_from, text
-from pytest import raises
-from string import hexdigits
+from pytest     import raises  # type: ignore
+from string     import hexdigits
+from typing     import Type, TypeVar
 
 from dvrip.errors import DVRIPDecodeError
-from dvrip.typing import Integer, Object, member
+from dvrip.typing import Integer, Member, Object, Value, member
 
+
+D = TypeVar('D', bound='DuckValue')
+
+class SubclassValue(Value):
+	pass
+
+class DuckValue(object):
+	def for_json(self) -> object:
+		pass
+
+	@staticmethod
+	def json_to(cls: Type[D], datum: object) -> D:
+		pass
+
+class DuckNoValue(DuckValue):
+	json_to = None
+
+def test_Value():
+	assert hasattr(Value, 'for_json')
+	assert hasattr(Value, 'json_to')
+
+def test_Value_subclasshook():
+	assert not issubclass(int, Value)
+	assert issubclass(SubclassValue, Value)
+	assert not issubclass(Value, SubclassValue)
+	assert issubclass(DuckValue, Value)
+	assert not issubclass(DuckNoValue, Value)
+
+def test_Integer():
+	assert issubclass(Integer, Value)
 
 @given(ints())
 def test_Integer_int(i):
@@ -47,6 +78,26 @@ def test_Integer_jsonto_forjson(i):
 def integers():
 	return ints().map(Integer)
 
+class SubclassMember(Member):
+	pass
+
+class DuckMember(object):
+	def __set_name__(self, _type: Type['Object'], _name: str) -> None:
+		pass
+
+class DuckNoMember(DuckMember):
+	__set_name__ = None
+
+def test_Member():
+	assert hasattr(Member, '__set_name__')
+
+def test_Member_subclasshook():
+	assert not issubclass(int, Member)
+	assert issubclass(SubclassMember, Member)
+	assert not issubclass(Member, SubclassMember)
+	assert issubclass(DuckMember, Member)
+	assert not issubclass(DuckNoMember, Member)
+
 def fromhex(value):
 	if not isinstance(value, str) or not all(c in hexdigits for c in value):
 		raise DVRIPDecodeError('not a hex string')
@@ -60,17 +111,22 @@ def hextext():
 	            .filter(lambda s: len(s) % 2 == 0))
 
 class Example(Object):
-	int = member('Int', Integer.json_to, default=Integer(2))
-	hex = member('Hex', fromhex, tohex, default=b'\x57')
+	int: member[Integer] = member('Int', Integer.json_to, default=Integer(2))
+	hex: member[str]     = member('Hex', fromhex, tohex, default=b'\x57')
 
 class BigExample(Example):
+	# not a field
+	type = 101
 	# note the single quote
-	int_ = member("Int'", Integer.json_to)
-	hex_ = member("Hex'", fromhex, tohex, default=b'\x42')
+	int_: member[Integer] = member("Int'", Integer.json_to)
+	hex_: member[str]     = member("Hex'", fromhex, tohex, default=b'\x42')
 
 class NestedExample(Object):
-	int = member('Int', Integer.json_to)
-	rec = member('Rec', Example.json_to)
+	int: member[Integer] = member('Int', Integer.json_to)
+	rec: member[Example] = member('Rec', Example.json_to)
+
+def test_Object():
+	assert issubclass(Object, Value)
 
 @given(integers(), binary())
 def test_Object_get(i, b):

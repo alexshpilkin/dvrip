@@ -1,6 +1,6 @@
 [BASIC]
 max-line-length=80
-ignore-long-lines=^\s*((# )?<?https?://\S+>?|# *pylint:.*)$
+ignore-long-lines=^\s*((# )?<?https?://\S+>?|#\s*pylint:.*)$
 
 good-names=i,j,k
 
@@ -16,6 +16,7 @@ disable=
 	multiple-statements,              # C0321 -- as intended
 	bad-whitespace,                   # C0326 -- fooled by alignment
 	bad-continuation,                 # C0330 -- fooled by alignment
+	wrong-import-order,               # C0411 -- as intended
 	useless-object-inheritance,       # R0205 -- as intended
 
 [REPORTS]

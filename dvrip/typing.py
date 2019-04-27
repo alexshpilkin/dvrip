@@ -1,70 +1,129 @@
+from abc         import ABCMeta, abstractmethod
 from collections import OrderedDict
 from sys         import intern
+from typing      import Any, Callable, Generic, MutableMapping, Tuple
+from typing      import Type, TypeVar, Union
 from .errors     import DVRIPDecodeError
 
+T = TypeVar('T')
+V = TypeVar('V', bound='Value')
+I = TypeVar('I', bound='Integer')
+O = TypeVar('O', bound='Object')
 
-class Integer(int):
-	def __repr__(self):
+
+class Value(metaclass=ABCMeta):
+	__slots__ = ()
+
+	@abstractmethod
+	def for_json(self) -> object:
+		raise NotImplementedError  # pragma: no cover
+
+	@classmethod
+	@abstractmethod
+	def json_to(cls: Type[V], datum: object) -> V:
+		raise NotImplementedError  # pragma: no cover
+
+	@classmethod
+	def __subclasshook__(cls, other: Type) -> bool:
+		if cls is not Value:
+			return NotImplemented
+		for method in ('for_json', 'json_to'):
+			for base in other.__mro__:
+				if method not in base.__dict__:
+					continue
+				if base.__dict__[method] is None:
+					return NotImplemented
+				break
+			else:
+				return NotImplemented
+		return True
+
+
+class Integer(Value, int):
+	def __repr__(self) -> str:
 		return 'Integer({})'.format(self)
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return str(int(self))
 
-	def for_json(self):
+	def for_json(self) -> int:
 		return int(self)
 
 	@classmethod
-	def json_to(cls, datum):
+	def json_to(cls: Type[I], datum: object) -> I:
 		if not isinstance(datum, int) or isinstance(datum, bool):
 			raise DVRIPDecodeError('not an integer')
 		return cls(datum)
 
 
-def _isunder(name):
+def _isunder(name: str) -> bool:
 	return len(name) >= 2 and name[0] == name[-1] == '_'
 
 
-def _isdescriptor(name):
-	return (hasattr(name, '__get__') or hasattr(name, '__set__') or
-	        hasattr(name, '__delete__'))
-
-
-def _for_json(obj):
+def _for_json(obj) -> object:
 	return obj.for_json()
+
+
+class Member(metaclass=ABCMeta):
+	__slots__ = ('__name__',)
+	__name__: str
+
+	@abstractmethod
+	def __set_name__(self, _type: Type['Object'], name: str) -> None:
+		self.__name__ = name
+
+	@classmethod
+	def __subclasshook__(cls, other: Type) -> bool:
+		if cls is not Member:
+			return NotImplemented
+		for method in ('__set_name__',):
+			for base in other.__mro__:
+				if method not in base.__dict__:
+					continue
+				if base.__dict__[method] is None:
+					return NotImplemented
+				break
+			else:
+				return NotImplemented
+		return True
 
 
 _SENTINEL = object()
 
-class member(object):
-	__slots__ = ('key', 'json_to', 'for_json', 'default', '__name__')
+class member(Member, Generic[T]):
+	__slots__ = ('key', 'json_to', 'for_json', 'default')
 
-	def __init__(self, key, json_to, for_json=_for_json, default=_SENTINEL):
+	def __init__(self,
+	             key:      str,
+	             json_to:  Callable[[object], T],
+	             for_json: Callable[[T], object] = _for_json,
+	             default = _SENTINEL
+	            ) -> None:
 		self.key      = key
 		self.json_to  = json_to
 		self.for_json = for_json
 		if default is not _SENTINEL:
-			self.default = default
-		self.__name__ = None
+			self.default: str = default
 
-	def __set_name__(self, _type, name):
-		self.__name__ = name
+	def __set_name__(self, type: Type['Object'], name: str) -> None:  # pylint: disable=redefined-builtin, useless-super-delegation
+		super().__set_name__(type, name)
 
-	def __get__(self, obj, type):  # pylint: disable=redefined-builtin
+	def __get__(self, obj: 'Object', _type: type) -> Union['member[T]', T]:
 		if obj is None:
 			return self
 		return getattr(obj._values_, self.__name__)  # pylint: disable=protected-access
 
-	def __set__(self, obj, value):
+	def __set__(self, obj: 'Object', value: T) -> None:
 		return setattr(obj._values_, self.__name__, value)  # pylint: disable=protected-access
 
 
-def _obj(obj):
+def _obj(obj: object) -> dict:
 	if not isinstance(obj, dict):
 		raise DVRIPDecodeError('not an object')
 	return dict(obj)
 
 
-def _pop(obj, key):
+def _pop(obj: dict, key: str) -> object:
 	assert isinstance(obj, dict)
 	try:
 		return obj.pop(key)
@@ -72,7 +131,7 @@ def _pop(obj, key):
 		raise DVRIPDecodeError('no member {!r}'.format(key))
 
 
-def _nil(obj):
+def _nil(obj: dict) -> None:
 	assert isinstance(obj, dict)
 	if not obj:
 		return
@@ -80,23 +139,28 @@ def _nil(obj):
 	raise DVRIPDecodeError('extra member {!r}'.format(key))
 
 
-class ObjectMeta(type):
-	def __new__(cls, name, bases, clsdict, **kwargs):
-		names = OrderedDict()
-		for mname, value in clsdict.items():
-			if (_isunder(mname) or not _isdescriptor(value) or
+class ObjectMeta(ABCMeta):
+	def __new__(cls, name, bases, namespace, **kwargs) -> 'ObjectMeta':
+		names: MutableMapping[str, Any] = OrderedDict()
+		for mname, value in namespace.items():
+			if (_isunder(mname) or
+			    not hasattr(value, '__set_name__') or
 			    not hasattr(value, 'key')):
-				continue
+				# Pytest-cov mistakenly thinks this branch is
+				# not taken.  Place a print statement here to
+				# verify.
+				continue  # pragma: no cover
 			names[intern(mname)] = value
 		for mname in names.keys():
-			del clsdict[mname]
-		clsdict['_names_'] = tuple(names)
+			del namespace[mname]
+		namespace['_names_'] = tuple(names)
 
-		slots = set(clsdict.get('__slots__', ()))
+		slots = set(namespace.get('__slots__', ()))
 		slots.add('_values_')
-		clsdict['slots'] = tuple(slots)
+		namespace['slots'] = tuple(slots)
 
-		self = super().__new__(cls, name, bases, clsdict, **kwargs)
+		self = super().__new__(cls, name, bases, namespace, **kwargs)  # type: ignore
+		assert isinstance(self, ObjectMeta)
 		for mname, member in names.items():  # pylint: disable=redefined-outer-name
 			member.__set_name__(self, mname)
 			setattr(self, mname, member)  # for members()
@@ -108,9 +172,13 @@ class ObjectMeta(type):
 
 		return self
 
-	def __init__(self, name, bases, clsdict):  # pylint: disable=too-many-locals
+	def __init__(self, name, bases, namespace) -> None:  # pylint: disable=too-many-locals
 		# pylint: disable=exec-used
-		super().__init__(name, bases, clsdict)
+		super().__init__(name, bases, namespace)
+
+		self._names_:     Tuple[str, ...]
+		self._members_:   Tuple[str, ...]
+		self._container_: Type
 
 		initspec = []
 		initbody = []
@@ -174,16 +242,18 @@ class ObjectMeta(type):
 		     tovals)
 		self._json_to_ = tovals['_json_to_']
 
-
-	def members(self):
-		members = OrderedDict()
+	def members(self) -> MutableMapping[str, Any]:
+		members: MutableMapping[str, Any] = OrderedDict()
 		for type in reversed(self.__mro__):  # pylint: disable=redefined-builtin
 			members.update((mname, getattr(type, mname))
 			               for mname in getattr(type, '_names_', ()))
 		return members
 
 
-class Object(metaclass=ObjectMeta):
+class Object(Value, metaclass=ObjectMeta):
+	_for_json_: Callable[['Object'], object]
+	# FIXME _to_json_
+
 	def __init__(self, *args, **kwargs):
 		self._values_ = type(self)._container_(*args, **kwargs)
 
@@ -199,9 +269,9 @@ class Object(metaclass=ObjectMeta):
 		return all(getattr(self, member) == getattr(other, member)
 		           for member in self._members_)
 
-	def for_json(self):
+	def for_json(self) -> object:
 		return self._for_json_()
 
 	@classmethod
-	def json_to(cls, obj):
-		return cls._json_to_(obj)
+	def json_to(cls: Type[O], datum: object) -> O:
+		return cls._json_to_(datum)  # type: ignore

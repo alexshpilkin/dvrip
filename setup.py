@@ -1,40 +1,39 @@
 #!/usr/bin/env python3
 
-from setuptools               import setup
-from setuptools.command.sdist import sdist as SDist
-from setuptools.command.test  import test as Test
+from setuptools               import Command, setup   # type: ignore
+from setuptools.command.test  import test as _test    # type: ignore
+from setuptools.command.sdist import sdist as _sdist  # type: ignore
+from shlex                    import split  # type: ignore
+from sys                      import exit   # pylint: disable=redefined-builtin
 
 
-class Lint(Test):
-	user_options = \
-		[('pylint-args=', 'l', 'Arguments to pass to pylint')]
-
-	def initialize_options(self):
-		super().initialize_options()
-		self.pylint_args = ' '.join([
-		])
-
-	def run_tests(self):  # pytest: disable=redefined-builtin
-		from shlex       import split
-		from sys         import exit  # pylint: disable=redefined-builtin
-		from pylint.lint import Run as pylint
-
-		exit(pylint(split(self.pylint_args) + packages + scripts +
-		            ['setup.py']))
-
-
-class CustomTest(Lint):
-	user_options = \
-		sorted(Lint.user_options +
-		       [('pytest-args=', 't', 'Arguments to pass to pytest')],
-		       key=lambda x: x[0])
+class mypy(Command):
+	description = 'validate type annotations with mypy'
+	user_options = [('mypy-args=', 'm', 'Arguments to pass to mypy')]
 
 	def initialize_options(self):
-		super().initialize_options()
-		self.pylint_args = ' '.join([
-			'--disable fixme',
-			self.pylint_args,
+		self.mypy_args = ' '.join([
 		])
+
+	def finalize_options(self):
+		self.mypy_args = split(self.mypy_args)
+
+	def run(self):
+		from mypy.main import main as run_mypy
+		for package in self.distribution.packages or []:
+			run_mypy(None, self.mypy_args + ['--package', package])
+		for module in self.distribution.py_modules or []:
+			run_mypy(None, self.mypy_args + ['--module', module])
+		for script in self.distribution.scripts or []:
+			run_mypy(None, self.mypy_args + ['--', script])
+		run_mypy(None, self.mypy_args + ['setup.py'])
+
+
+class pytest(Command):
+	description = 'run tests with pytest'
+	user_options = [('pytest-args=', 't', 'Arguments to pass to pytest')]
+
+	def initialize_options(self):
 		self.pytest_args = ' '.join([
 			'-v',
 			'--cov',
@@ -42,19 +41,65 @@ class CustomTest(Lint):
 			'--cov-report annotate',
 		])
 
-	def run_tests(self):
-		from shlex  import split
-		from sys    import exit  # pylint: disable=redefined-builtin
-		from pytest import main as pytest
+	def finalize_options(self):
+		self.pytest_args = split(self.pytest_args)
 
+	def run(self):
+		from pytest import main as run_pytest  # type: ignore
+		code = run_pytest(self.pytest_args)
+		if code: exit(code)
+
+
+class pylint(Command):
+	description  = 'check for code standard violations with pylint'
+	user_options = [('pylint-args=', 'l', 'Arguments to pass to pylint')]
+
+	def initialize_options(self):
+		self.pylint_args = ' '.join([
+		])
+
+	def finalize_options(self):
+		self.pylint_args = split(self.pylint_args)
+		if '--' not in self.pylint_args:
+			self.pylint_args.append('--')
+		self.pylint_args.extend(self.distribution.packages   or [])
+		self.pylint_args.extend(self.distribution.py_modules or [])
+		self.pylint_args.extend(self.distribution.scripts    or [])
+		self.pylint_args.append('setup.py')
+
+	def run(self):
+		from pylint.lint import Run as run_pylint  # type: ignore
 		try:
-			super().run_tests()
+			run_pylint(self.pylint_args)
 		except SystemExit as e:
 			if e.code: raise
-		exit(pytest(split(self.pytest_args)))
 
 
-class CustomSDist(SDist):
+class test(_test, pylint, pytest, mypy):
+	description  = 'run unit tests'
+	user_options = sorted(mypy.user_options +
+	                      pytest.user_options +
+	                      pylint.user_options,
+	                      key=lambda x: x[0])
+
+	def initialize_options(self):
+		for base in test.__bases__:
+			base.initialize_options(self)
+		self.pylint_args = ' '.join([
+			'--disable fixme',
+			self.pylint_args,
+		])
+
+	def finalize_options(self):
+		for base in test.__bases__:
+			base.finalize_options(self)
+
+	def run_tests(self):
+		for base in reversed(test.__bases__[1:]):
+			base.run(self)
+
+
+class sdist(_sdist):
 	def initialize_options(self):
 		super().initialize_options()
 		self.formats = ['gztar', 'zip']
@@ -68,9 +113,6 @@ with open('README.rst', 'r') as fp:
 		if not line[:-1]:
 			break
 	readme = ''.join(line for line in fp)
-
-packages=['dvrip']
-scripts=['test_connect']
 
 setup(
 	name='dvrip',
@@ -89,7 +131,6 @@ setup(
 		'Operating System :: OS Independent',
 		'Programming Language :: Python',
 		'Programming Language :: Python :: 3',
-		'Programming Language :: Python :: 3.5',
 		'Programming Language :: Python :: 3.6',
 		'Programming Language :: Python :: 3.7',
 		'Topic :: Communications',
@@ -101,15 +142,22 @@ setup(
 		'Topic :: Utilities',
 	],
 
-	packages=packages,
-	scripts=scripts,
-	python_requires='>=3.5, <4',
+	packages=['dvrip'],
+	scripts=['test_connect'],
+	python_requires='>=3.6, <4',
 	install_requires=[],
-	tests_require=['pylint >=2.3.0', 'pytest', 'pytest-cov', 'hypothesis'],
+	tests_require=[
+		'hypothesis',
+		'mypy >=0.700',
+		'pylint >=2.3.0',
+		'pytest',
+		'pytest-cov',
+	],
 
 	cmdclass={
-		'lint':  Lint,
-		'sdist': CustomSDist,
-		'test':  CustomTest,
+		'lint':  pylint,
+		'sdist': sdist,
+		'test':  test,
+		'type':  mypy,
 	},
 )

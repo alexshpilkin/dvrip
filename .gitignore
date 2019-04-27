@@ -1,8 +1,9 @@
 .coverage
 .hypothesis
+.mypy_cache
 __pycache__
-build
-dist
+/build
+/dist
 *,cover
 *.egg-info
 *.pyc
