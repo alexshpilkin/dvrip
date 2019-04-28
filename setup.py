@@ -145,11 +145,13 @@ setup(
 	packages=['dvrip'],
 	scripts=['test_connect'],
 	python_requires='>=3.6, <4',
-	install_requires=[],
+	install_requires=[
+		'typing_inspect >=0.4, <0.5'
+	],
 	tests_require=[
 		'hypothesis',
 		'mypy >=0.700',
-		'pylint >=2.3.0',
+		'pylint >=2.3',
 		'pytest',
 		'pytest-cov',
 	],

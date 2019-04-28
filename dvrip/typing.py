@@ -2,11 +2,11 @@ from abc         import ABCMeta, abstractmethod
 from collections import OrderedDict
 from enum        import Enum, EnumMeta
 from sys         import intern
-from typing      import Any, Callable, Generic, MutableMapping, NamedTuple, \
-                        Optional, Tuple, TYPE_CHECKING, Type, TypeVar, Union, \
+from typing      import Any, Callable, Generic, MutableMapping, Optional, \
+                        Tuple, TYPE_CHECKING, Type, TypeVar, Union, \
                         get_type_hints
-from typing_extensions \
-                 import Protocol, runtime
+from typing_extensions import Protocol, runtime
+from typing_inspect import is_generic_type, get_origin, get_args  # type: ignore
 from .errors     import DVRIPDecodeError
 
 V = TypeVar('V', bound='Union[int, str, Value]')
@@ -14,6 +14,7 @@ O = TypeVar('O', bound='Object')
 
 
 if TYPE_CHECKING:  # pragma: no cover
+	@runtime
 	class Value(Protocol):
 		# pylint: disable=no-self-use,unused-argument
 
@@ -54,11 +55,24 @@ else:
 
 
 def _for_json(obj: V.__bound__) -> object:
-	if isinstance(obj, int):
-		return obj
-	if isinstance(obj, str):
-		return obj
-	return obj.for_json()
+	try:
+		return obj.for_json()
+	except AttributeError:
+		if isinstance(obj, int):
+			return obj
+		if isinstance(obj, str):
+			return obj
+		raise TypeError('not a JSON value')
+
+
+def _json_to(type):  # pylint: disable=redefined-builtin
+	if issubclass(type, Value):
+		return type.json_to
+	if issubclass(type, int):
+		return _json_to_int
+	if issubclass(type, str):
+		return _json_to_str
+	return None
 
 
 class EnumValueMeta(EnumMeta, ABCMeta):
@@ -136,7 +150,7 @@ else:
 
 _SENTINEL = object()
 
-class member(Generic[V], Member[V]):  # pylint: disable=unsubscriptable-object
+class member(Member[V]):
 	__slots__ = ('key', 'json_to', 'for_json', 'default')
 
 	def __init__(self,
@@ -151,29 +165,18 @@ class member(Generic[V], Member[V]):  # pylint: disable=unsubscriptable-object
 		if default is not _SENTINEL:
 			self.default: str = default
 
-	class _Annotation(NamedTuple):
-		json_to: Callable[[object], Any]
-
-	if not TYPE_CHECKING:
-		@classmethod
-		def __class_getitem__(cls, type):  # pylint: disable=redefined-builtin
-			if issubclass(type, Value):
-				return cls._Annotation(type.json_to)
-			if issubclass(type, int):
-				return cls._Annotation(_json_to_int)
-			if issubclass(type, str):
-				return cls._Annotation(_json_to_str)
-			return None
-
-	def __set_name__(self, type: 'ObjectMeta', name: str) -> None:  # pylint: disable=redefined-builtin
-		super().__set_name__(type, name)
+	def __set_name__(self, cls: 'ObjectMeta', name: str) -> None:
+		super().__set_name__(cls, name)
 		if self.json_to is None:
-			ann = get_type_hints(type).get(name, None)
-			if not isinstance(ann, self._Annotation):
-				raise TypeError('no type or conversion '
-				                'specified for member {!r}'
-				                .format(name))
-			self.json_to = ann.json_to
+			ann = get_type_hints(cls).get(name, None)
+			if (is_generic_type(ann) and
+			    get_origin(ann) == type(self)):
+				arg, = get_args(ann)
+				self.json_to = _json_to(arg)
+		if self.json_to is None:
+			raise TypeError('no type or conversion '
+			                'specified for member {!r}'
+			                .format(name))
 
 	def __get__(self, obj: 'Object', _type: type) -> Union['member[V]', V]:
 		if obj is None:
@@ -189,6 +192,20 @@ class member(Generic[V], Member[V]):  # pylint: disable=unsubscriptable-object
 
 	def pop(self, pop):
 		return self.json_to(pop(self.key))
+
+
+class optionalmember(member[V]):
+	def push(self, push, value):
+		if value is NotImplemented:
+			return
+		super().push(push, value)
+
+	def pop(self, pop):
+		try:
+			datum = pop(self.key)
+		except DVRIPDecodeError:
+			return NotImplemented
+		return self.json_to(datum)
 
 
 def _isunder(name: str) -> bool:

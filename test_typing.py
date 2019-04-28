@@ -8,8 +8,12 @@ from typing     import Callable, Type, TypeVar, no_type_check
 
 from dvrip.errors import DVRIPDecodeError
 from dvrip.typing import EnumValue, Member, Object, Value, _for_json, \
-                         _json_to_int, _json_to_str, member
+                         _json_to_int, _json_to_str, member, optionalmember
 
+
+def test_forjson():
+	with raises(TypeError, match='not a JSON value'):
+		_for_json(Ellipsis)
 
 D = TypeVar('D', bound='DuckValue')
 
@@ -154,7 +158,7 @@ def test_Member_nojsonto():
 			bad: 3 = member('Bad')
 	with raises(TypeError, match='no type or conversion specified'):
 		class FailingExample(Example):
-			bad: member[NotImplementedError] = member('Bad')
+			bad: member[type(Ellipsis)] = member('Bad')
 
 @given(integers(), binary())
 def test_Object_get(i, b):
@@ -224,3 +228,24 @@ def test_Object_jsonto_forjson(i, j, h):
 	assert Example.json_to(obj).for_json() == obj
 	nst = {'Int': i, 'Obj': obj}
 	assert NestedExample.json_to(nst).for_json() == nst
+
+class OptionalExample(Object):
+	mint: member[int] = member('Int1')
+	nint: optionalmember[int] = optionalmember('Int2')
+	kint: member[int] = member('Int3')
+
+@given(integers(), integers(), integers())
+def test_optionalmember_forjson(i, j, k):
+	value = OptionalExample(mint=i, nint=j, kint=k)
+	assert value.for_json() == {'Int1': i, 'Int2': j, 'Int3': k}
+	value = OptionalExample(mint=i, nint=NotImplemented, kint=k)
+	assert value.for_json() == {'Int1': i, 'Int3': k}
+
+@given(integers(), integers(), integers())
+def test_optionalmember_jsonto(i, j, k):
+	datum = {'Int1': i, 'Int2': j, 'Int3': k}
+	assert (OptionalExample.json_to(datum) ==
+	        OptionalExample(mint=i, nint=j, kint=k))
+	datum = {'Int1': i, 'Int3': k}
+	assert (OptionalExample.json_to(datum) ==
+	        OptionalExample(mint=i, nint=NotImplemented, kint=k))
