@@ -135,7 +135,7 @@ class BigExample(Example):
 
 class NestedExample(Object):
 	mint = member('Int', _json_to_int)  # type: ignore
-	rec: member[Example] = member('Rec')
+	mobj: member[Example] = member('Obj')
 
 class ConflictExample(Object):
 	mint: member[int] = member('Conflict')
@@ -158,17 +158,17 @@ def test_Member_nojsonto():
 
 @given(integers(), binary())
 def test_Object_get(i, b):
-	rec = Example(i, b)
-	assert rec.mint == i and rec.mhex == b
+	mobj = Example(i, b)
+	assert mobj.mint == i and mobj.mhex == b
 
 @given(integers(), binary(), integers(), binary())
 def test_Object_set(i, b, j, c):
-	rec = Example(i, b)
-	assert rec.mint == i and rec.mhex == b
-	rec.mint = j
-	assert rec.mint == j and rec.mhex == b
-	rec.mhex = c
-	assert rec.mint == j and rec.mhex == c
+	mobj = Example(i, b)
+	assert mobj.mint == i and mobj.mhex == b
+	mobj.mint = j
+	assert mobj.mint == j and mobj.mhex == b
+	mobj.mhex = c
+	assert mobj.mint == j and mobj.mhex == c
 
 @given(integers(), binary(), integers())
 def test_Object_defaults(i, b, j):
@@ -213,14 +213,14 @@ def test_Object_jsonto(i, h):
 
 @given(integers(), integers(), binary())
 def test_Object_forjson_jsonto(i, j, b):
-	rec = Example(j, b)
-	assert Example.json_to(rec.for_json()) == rec
-	nst = NestedExample(i, rec)
+	mobj = Example(j, b)
+	assert Example.json_to(mobj.for_json()) == mobj
+	nst = NestedExample(i, mobj)
 	assert NestedExample.json_to(nst.for_json()) == nst
 
 @given(integers(), integers(), hextext())
 def test_Object_jsonto_forjson(i, j, h):
 	obj = {'Int': j, 'Hex': h}
 	assert Example.json_to(obj).for_json() == obj
-	nst = {'Int': i, 'Rec': obj}
+	nst = {'Int': i, 'Obj': obj}
 	assert NestedExample.json_to(nst).for_json() == nst
