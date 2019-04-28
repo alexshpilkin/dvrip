@@ -6,7 +6,6 @@ from typing      import Any, Callable, Generic, MutableMapping, NamedTuple, \
                         get_type_hints
 from .errors     import DVRIPDecodeError
 
-T = TypeVar('T')
 V = TypeVar('V', bound='Value')
 I = TypeVar('I', bound='Integer')
 O = TypeVar('O', bound='Object')
@@ -65,7 +64,7 @@ def _for_json(obj) -> object:
 	return obj.for_json()
 
 
-class Member(metaclass=ABCMeta):
+class Member(Generic[V], metaclass=ABCMeta):
 	__slots__ = ('__name__',)
 	__name__: str
 
@@ -76,12 +75,12 @@ class Member(metaclass=ABCMeta):
 	@abstractmethod
 	def push(self,
 	         push: Callable[[str, object], None],
-	         value: Any
+	         value: V
 	        ) -> None:  # FIXME
 		pass
 
 	@abstractmethod
-	def pop(self, pop: Callable[[str], object]) -> Any:  # FIXME
+	def pop(self, pop: Callable[[str], object]) -> V:  # FIXME
 		raise NotImplementedError  # pragma: no cover
 
 	@classmethod
@@ -102,13 +101,13 @@ class Member(metaclass=ABCMeta):
 
 _SENTINEL = object()
 
-class member(Generic[T], Member):
+class member(Generic[V], Member[V]):  # pylint: disable=unsubscriptable-object
 	__slots__ = ('key', 'json_to', 'for_json', 'default')
 
 	def __init__(self,
 	             key:      str,
-	             json_to:  Optional[Callable[[object], T]] = None,
-	             for_json: Callable[[T], object] = _for_json,
+	             json_to:  Optional[Callable[[object], V]] = None,
+	             for_json: Callable[[V], object] = _for_json,
 	             default = _SENTINEL
 	            ) -> None:
 		self.key      = key
@@ -136,12 +135,12 @@ class member(Generic[T], Member):
 				                .format(name))
 			self.json_to = ann.json_to
 
-	def __get__(self, obj: 'Object', _type: type) -> Union['member[T]', T]:
+	def __get__(self, obj: 'Object', _type: type) -> Union['member[V]', V]:
 		if obj is None:
 			return self
 		return getattr(obj._values_, self.__name__)  # pylint: disable=protected-access
 
-	def __set__(self, obj: 'Object', value: T) -> None:
+	def __set__(self, obj: 'Object', value: V) -> None:
 		return setattr(obj._values_, self.__name__, value)  # pylint: disable=protected-access
 
 	def push(self, push, value):
