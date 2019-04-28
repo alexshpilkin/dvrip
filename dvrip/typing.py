@@ -9,8 +9,7 @@ from typing_extensions \
                  import Protocol, runtime
 from .errors     import DVRIPDecodeError
 
-V = TypeVar('V', bound='Value')
-I = TypeVar('I', bound='Integer')
+V = TypeVar('V', bound='Union[int, Value]')
 S = TypeVar('S', bound='String')
 O = TypeVar('O', bound='Object')
 
@@ -55,6 +54,12 @@ else:
 			return True
 
 
+def _for_json(obj: V.__bound__) -> object:
+	if isinstance(obj, int):
+		return obj
+	return obj.for_json()
+
+
 class EnumValueMeta(EnumMeta, ABCMeta):
 	pass
 
@@ -63,21 +68,10 @@ class EnumValue(Value, Enum, metaclass=EnumValueMeta):  # pylint: disable=abstra
 	pass
 
 
-class Integer(Value, int):
-	def __repr__(self) -> str:
-		return 'Integer({!r})'.format(int(self))
-
-	def __str__(self) -> str:
-		return str(int(self))
-
-	def for_json(self) -> int:
-		return int(self)
-
-	@classmethod
-	def json_to(cls: Type[I], datum: object) -> I:
-		if not isinstance(datum, int) or isinstance(datum, bool):
-			raise DVRIPDecodeError('not an integer')
-		return cls(datum)
+def _json_to_int(datum: object) -> int:
+	if not isinstance(datum, int) or isinstance(datum, bool):
+		raise DVRIPDecodeError('not an integer')
+	return int(datum)
 
 
 class String(Value, str):
@@ -93,13 +87,6 @@ class String(Value, str):
 			raise DVRIPDecodeError('not a string')
 		return cls(datum)
 
-
-def _isunder(name: str) -> bool:
-	return len(name) >= 2 and name[0] == name[-1] == '_'
-
-
-def _for_json(obj) -> object:
-	return obj.for_json()
 
 if TYPE_CHECKING:  # pragma: no cover
 	@runtime
@@ -177,8 +164,11 @@ class member(Generic[V], Member[V]):  # pylint: disable=unsubscriptable-object
 	if not TYPE_CHECKING:
 		@classmethod
 		def __class_getitem__(cls, type):  # pylint: disable=redefined-builtin
-			return (cls._Annotation(type.json_to)
-			        if issubclass(type, Value) else None)
+			if issubclass(type, Value):
+				return cls._Annotation(type.json_to)
+			if issubclass(type, int):
+				return cls._Annotation(_json_to_int)
+			return None
 
 	def __set_name__(self, type: 'ObjectMeta', name: str) -> None:  # pylint: disable=redefined-builtin
 		super().__set_name__(type, name)
@@ -204,6 +194,10 @@ class member(Generic[V], Member[V]):  # pylint: disable=unsubscriptable-object
 
 	def pop(self, pop):
 		return self.json_to(pop(self.key))
+
+
+def _isunder(name: str) -> bool:
+	return len(name) >= 2 and name[0] == name[-1] == '_'
 
 
 class ObjectMeta(ABCMeta):

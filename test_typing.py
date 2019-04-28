@@ -1,14 +1,14 @@
 from enum       import IntEnum
 from hypothesis import given
 from hypothesis.strategies \
-                import binary, integers as ints, sampled_from, text
+                import binary, integers, sampled_from, text
 from pytest     import raises  # type: ignore
 from string     import hexdigits
 from typing     import Callable, Type, TypeVar, no_type_check
 
 from dvrip.errors import DVRIPDecodeError
-from dvrip.typing import EnumValue, Integer, Member, Object, String, Value, \
-                         member
+from dvrip.typing import EnumValue, Member, Object, String, Value, _for_json, \
+                         _json_to_int, member
 
 
 D = TypeVar('D', bound='DuckValue')
@@ -47,47 +47,24 @@ def test_EnumValue():
 	assert issubclass(SubclassEnumValue, Value)
 	assert SubclassEnumValue.ZERO == 0 and SubclassEnumValue.ONE == 1
 
-def test_Integer():
-	assert issubclass(Integer, Value)
+@given(integers())
+def test_int_forjson(i):
+	assert _for_json(i) == i
 
-@given(ints())
-def test_Integer_int(i):
-	assert int(Integer(i)) == i
-
-@given(ints(), ints())
-def test_Integer_eq(i, j):
-	assert (Integer(i) == Integer(j)) == (i == j)
-
-@given(ints())
-def test_Integer_repr(i):
-	assert repr(Integer(i)) == 'Integer({})'.format(i)
-
-@given(ints())
-def test_Integer_str(i):
-	assert str(Integer(i)) == str(i)
-
-@given(ints())
-def test_Integer_forjson(i):
-	assert Integer(i).for_json() == i
-
-@given(ints())
-def test_Integer_jsonto(i):
-	assert Integer.json_to(i) == Integer(i)
+@given(integers())
+def test_int_jsonto(i):
+	assert _json_to_int(i) == i
 	with raises(DVRIPDecodeError, match='not an integer'):
 		# False and True are tricky, because issubclass(bool, int)
-		Integer.json_to(False)
+		_json_to_int(False)
 
-@given(ints())
-def test_Integer_forjson_jsonto(i):
-	i = Integer(i)
-	assert Integer.json_to(i.for_json()) == i
+@given(integers())
+def test_int_forjson_jsonto(i):
+	assert _json_to_int(_for_json(i)) == i
 
-@given(ints())
-def test_Integer_jsonto_forjson(i):
-	assert Integer.json_to(i).for_json() == i
-
-def integers():
-	return ints().map(Integer)
+@given(integers())
+def test_int_jsonto_forjson(i):
+	assert _for_json(_json_to_int(i)) == i
 
 def test_String():
 	assert issubclass(String, Value)
@@ -160,8 +137,8 @@ def hextext():
 	            .filter(lambda s: len(s) % 2 == 0))
 
 class Example(Object):
-	int: member[Integer] = member('Int', Integer.json_to, default=Integer(2))
-	hex: member[str]     = member('Hex', fromhex, tohex, default=b'\x57')
+	mint: member[int] = member('Int', _json_to_int, default=2)
+	mhex: member[str] = member('Hex', fromhex, tohex, default=b'\x57')
 
 class BigExample(Example):
 	# a descriptor but not a field
@@ -169,16 +146,16 @@ class BigExample(Example):
 	def room(self):
 		return 101
 	# note the single quote
-	int_: member[Integer] = member("Int'")
-	hex_: member[str]     = member("Hex'", fromhex, tohex, default=b'\x42')
+	nini: member[int] = member("Int'")
+	nhex: member[str] = member("Hex'", fromhex, tohex, default=b'\x42')
 
 class NestedExample(Object):
-	int = member('Int', Integer.json_to)  # type: ignore
+	mint = member('Int', _json_to_int)  # type: ignore
 	rec: member[Example] = member('Rec')
 
 class ConflictExample(Object):
-	int1: member[Integer] = member('Conflict')
-	int2: member[Integer] = member('Conflict')
+	mint: member[int] = member('Conflict')
+	nint: member[int] = member('Conflict')
 
 def test_Object():
 	assert issubclass(Object, Value)
@@ -195,29 +172,30 @@ def test_Member_nojsonto():
 @given(integers(), binary())
 def test_Object_get(i, b):
 	rec = Example(i, b)
-	assert rec.int == i and rec.hex == b
+	assert rec.mint == i and rec.mhex == b
 
 @given(integers(), binary(), integers(), binary())
 def test_Object_set(i, b, j, c):
 	rec = Example(i, b)
-	assert rec.int == i and rec.hex == b
-	rec.int = j
-	assert rec.int == j and rec.hex == b
-	rec.hex = c
-	assert rec.int == j and rec.hex == c
+	assert rec.mint == i and rec.mhex == b
+	rec.mint = j
+	assert rec.mint == j and rec.mhex == b
+	rec.mhex = c
+	assert rec.mint == j and rec.mhex == c
 
 @given(integers(), binary(), integers())
 def test_Object_defaults(i, b, j):
-	assert Example().int == Integer(2) and Example().hex == b'\x57'
-	assert Example(i).hex == b'\x57'
-	assert Example(hex=b).int == Integer(2)
-	assert BigExample(i, b, j).hex_ == b'\x42'
+	assert Example().mint == 2 and Example().mhex == b'\x57'
+	assert Example(i).mhex == b'\x57'
+	assert Example(mhex=b).mint == 2
+	assert BigExample(i, b, j).nhex == b'\x42'
 	with raises(TypeError):
-		BigExample(int=i, int_=j)
+		BigExample(mint=i, nini=j)
 
 @given(integers(), binary())
 def test_Object_repr(i, b):
-	assert repr(Example(i, b)) == 'Example(int={!r}, hex={!r})'.format(i, b)
+	assert (repr(Example(i, b)) ==
+	        'Example(mint={!r}, mhex={!r})'.format(i, b))
 
 @given(integers(), binary(), integers(), binary())
 def test_Object_eq(i, b, j, c):
@@ -231,10 +209,10 @@ def test_Object_forjson(i, b, j):
 	with raises(TypeError, match='already set'):
 		ConflictExample(i, j).for_json()
 
-@given(ints(), hextext())
+@given(integers(), hextext())
 def test_Object_jsonto(i, h):
 	assert (Example.json_to({'Int': i, 'Hex': h}) ==
-	        Example(Integer(i), bytes.fromhex(h)))
+	        Example(i, bytes.fromhex(h)))
 	with raises(DVRIPDecodeError, match='not an object'):
 		Example.json_to([])
 	with raises(DVRIPDecodeError, match='no member'):
@@ -253,7 +231,7 @@ def test_Object_forjson_jsonto(i, j, b):
 	nst = NestedExample(i, rec)
 	assert NestedExample.json_to(nst.for_json()) == nst
 
-@given(ints(), ints(), hextext())
+@given(integers(), integers(), hextext())
 def test_Object_jsonto_forjson(i, j, h):
 	obj = {'Int': j, 'Hex': h}
 	assert Example.json_to(obj).for_json() == obj
