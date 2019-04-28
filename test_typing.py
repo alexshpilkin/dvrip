@@ -1,14 +1,15 @@
 from enum       import IntEnum
 from hypothesis import given
 from hypothesis.strategies \
-                import binary, integers, sampled_from, text
+                import binary, booleans, integers, sampled_from, text
 from pytest     import raises  # type: ignore
 from string     import hexdigits
 from typing     import Callable, Type, TypeVar, no_type_check
 
 from dvrip.errors import DVRIPDecodeError
 from dvrip.typing import EnumValue, Member, Object, Value, _for_json, \
-                         _json_to_int, _json_to_str, member, optionalmember
+                         _json_to_bool, _json_to_int, _json_to_str, member, \
+                         optionalmember
 
 
 def test_forjson():
@@ -50,6 +51,24 @@ def test_EnumValue():
 	assert issubclass(SubclassEnumValue, IntEnum)
 	assert issubclass(SubclassEnumValue, Value)
 	assert SubclassEnumValue.ZERO == 0 and SubclassEnumValue.ONE == 1
+
+@given(booleans())
+def test_bool_forjson(b):
+	assert _for_json(b) == b
+
+@given(booleans())
+def test_bool_jsonto(b):
+	assert _json_to_bool(b) == b
+	with raises(DVRIPDecodeError, match='not a boolean'):
+		_json_to_bool(1)
+
+@given(booleans())
+def test_bool_forjson_jsonto(b):
+	assert _json_to_bool(_for_json(b)) == b
+
+@given(booleans())
+def test_bool_jsonto_forjson(b):
+	assert _for_json(_json_to_bool(b)) == b
 
 @given(integers())
 def test_int_forjson(i):

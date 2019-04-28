@@ -9,7 +9,7 @@ from typing_extensions import Protocol, runtime
 from typing_inspect import is_generic_type, get_origin, get_args  # type: ignore
 from .errors     import DVRIPDecodeError
 
-V = TypeVar('V', bound='Union[int, str, Value]')
+V = TypeVar('V', bound='Union[bool, int, str, Value]')
 O = TypeVar('O', bound='Object')
 
 
@@ -58,9 +58,7 @@ def _for_json(obj: V.__bound__) -> object:
 	try:
 		return obj.for_json()
 	except AttributeError:
-		if isinstance(obj, int):
-			return obj
-		if isinstance(obj, str):
+		if isinstance(obj, (bool, int, str)):
 			return obj
 		raise TypeError('not a JSON value')
 
@@ -68,6 +66,8 @@ def _for_json(obj: V.__bound__) -> object:
 def _json_to(type):  # pylint: disable=redefined-builtin
 	if issubclass(type, Value):
 		return type.json_to
+	if issubclass(type, bool):  # needs to come before 'int'
+		return _json_to_bool
 	if issubclass(type, int):
 		return _json_to_int
 	if issubclass(type, str):
@@ -75,12 +75,10 @@ def _json_to(type):  # pylint: disable=redefined-builtin
 	return None
 
 
-class EnumValueMeta(EnumMeta, ABCMeta):
-	pass
-
-
-class EnumValue(Value, Enum, metaclass=EnumValueMeta):  # pylint: disable=abstract-method
-	pass
+def _json_to_bool(datum: object) -> bool:
+	if not isinstance(datum, bool):
+		raise DVRIPDecodeError('not a boolean')
+	return bool(datum)
 
 
 def _json_to_int(datum: object) -> int:
@@ -93,6 +91,14 @@ def _json_to_str(datum: object) -> str:
 	if not isinstance(datum, str):
 		raise DVRIPDecodeError('not a string')
 	return str(datum)
+
+
+class EnumValueMeta(EnumMeta, ABCMeta):
+	pass
+
+
+class EnumValue(Value, Enum, metaclass=EnumValueMeta):  # pylint: disable=abstract-method
+	pass
 
 
 if TYPE_CHECKING:  # pragma: no cover
