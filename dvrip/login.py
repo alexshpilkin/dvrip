@@ -2,7 +2,7 @@ from hashlib  import md5
 from string   import ascii_lowercase, ascii_uppercase, digits
 from .message import ControlMessage, ControlFilter, Status, Session
 from .errors  import DVRIPDecodeError
-from .typing  import String, Object, member
+from .typing  import Object, member
 from .utils   import (checkbool as _checkbool, checkdict as _checkdict,
                       checkempty as _checkempty, eq as _eq, init as _init,
                       popint as _popint, popkey as _popkey, popstr as _popstr,
@@ -114,7 +114,7 @@ class ClientLogout(Object, ControlMessage):
 	type = 1002
 
 	# FIXME 'username' unused?
-	username: member[String]  = member('Name')
+	username: member[str]     = member('Name')
 	session:  member[Session] = member('SessionID')
 
 	@classmethod
@@ -126,5 +126,5 @@ class ClientLogoutReply(Object, ControlMessage):
 	type = 1003
 
 	status:   member[Status]  = member('Ret')
-	username: member[String]  = member('Name')
+	username: member[str]     = member('Name')
 	session:  member[Session] = member('SessionID')

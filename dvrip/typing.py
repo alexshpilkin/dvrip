@@ -9,8 +9,7 @@ from typing_extensions \
                  import Protocol, runtime
 from .errors     import DVRIPDecodeError
 
-V = TypeVar('V', bound='Union[int, Value]')
-S = TypeVar('S', bound='String')
+V = TypeVar('V', bound='Union[int, str, Value]')
 O = TypeVar('O', bound='Object')
 
 
@@ -57,6 +56,8 @@ else:
 def _for_json(obj: V.__bound__) -> object:
 	if isinstance(obj, int):
 		return obj
+	if isinstance(obj, str):
+		return obj
 	return obj.for_json()
 
 
@@ -74,18 +75,10 @@ def _json_to_int(datum: object) -> int:
 	return int(datum)
 
 
-class String(Value, str):
-	def __repr__(self) -> str:
-		return 'String({!r})'.format(str(self))
-
-	def for_json(self) -> str:
-		return str(self)
-
-	@classmethod
-	def json_to(cls: Type[S], datum: object) -> S:
-		if not isinstance(datum, str):
-			raise DVRIPDecodeError('not a string')
-		return cls(datum)
+def _json_to_str(datum: object) -> str:
+	if not isinstance(datum, str):
+		raise DVRIPDecodeError('not a string')
+	return str(datum)
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -168,6 +161,8 @@ class member(Generic[V], Member[V]):  # pylint: disable=unsubscriptable-object
 				return cls._Annotation(type.json_to)
 			if issubclass(type, int):
 				return cls._Annotation(_json_to_int)
+			if issubclass(type, str):
+				return cls._Annotation(_json_to_str)
 			return None
 
 	def __set_name__(self, type: 'ObjectMeta', name: str) -> None:  # pylint: disable=redefined-builtin

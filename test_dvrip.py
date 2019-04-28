@@ -10,13 +10,9 @@ from socket     import socket as Socket
 from dvrip         import *
 from dvrip.message import _ChunkReader
 from dvrip.packet  import _mirrorproperty
-from dvrip.typing  import String
 from dvrip.utils   import checkbool, checkdict, checkempty, checkint, \
                           checkstr, popkey
 
-
-def strings(*args, **kwargs):
-	return text(*args, **kwargs).map(String)
 
 def test_md5crypt_empty():
 	assert md5crypt(b'') == b'tlJwpbo6'
@@ -353,13 +349,13 @@ def test_ControlFilter_accept_invalid_overlap():
 		replies.accept(q)
 
 def test_ClientLogout_topackets(noconn):
-	p, = ClientLogout(String('admin'), noconn.session).topackets(noconn)
+	p, = ClientLogout('admin', noconn.session).topackets(noconn)
 	assert p.encode() == (b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xEA\x03\x2E\x00\x00\x00'
 	                      b'{"Name": "admin", "SessionID": "0x00000057"}'
 	                      b'\x0A\x00')
 
-@given(strings(), integers(min_value=0, max_value=0xFFFFFFFF))
+@given(text(), integers(min_value=0, max_value=0xFFFFFFFF))
 def test_ClientLogout_forjson_jsonto(username, id):
 	m = ClientLogout(username, Session(id))
 	assert ClientLogout.json_to(m.for_json()) == m
@@ -371,10 +367,10 @@ def test_ClientLogoutReply_accept():
 	        b'"SessionID" : "0x00000057" }\x0A\x00')
 	replies = ClientLogout.replies(0)
 	m, = replies.accept(Packet.decode(data))
-	assert (m.username == String("") and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
+	assert (m.username == "" and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
 
-@given(sampled_from(Status), strings(),
+@given(sampled_from(Status), text(),
        integers(min_value=0, max_value=0xFFFFFFFF))
 def test_ClientLogoutReply_forjson_jsonto(status, username, id):
 	m = ClientLogoutReply(status, username, Session(id))
@@ -384,11 +380,11 @@ def test_Connection_logout(noconn, rfile, wfile, capsys):
 	session = noconn.session
 
 	noconn.number = 2
-	p, = (ClientLogoutReply(Status.OK, String('admin'), session)
+	p, = (ClientLogoutReply(Status.OK, 'admin', session)
 	     .topackets(noconn))
 	p.dump(rfile)
 	noconn.number = 0
-	p, = (ClientLogoutReply(Status.OK, String('admin'), session)
+	p, = (ClientLogoutReply(Status.OK, 'admin', session)
 	     .topackets(noconn))
 	p.dump(rfile)
 	noconn.number = 0
@@ -396,7 +392,7 @@ def test_Connection_logout(noconn, rfile, wfile, capsys):
 
 	rfile.seek(0); noconn.logout(); wfile.seek(0)
 	m = ClientLogout.frompackets([Packet.load(wfile)])
-	assert m == ClientLogout(String('admin'), session)
+	assert m == ClientLogout('admin', session)
 	out1, out2 = capsys.readouterr().out.split('\n')
 	assert out1.startswith('unrecognized packet: ') and out2 == ''
 

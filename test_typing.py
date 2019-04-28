@@ -7,8 +7,8 @@ from string     import hexdigits
 from typing     import Callable, Type, TypeVar, no_type_check
 
 from dvrip.errors import DVRIPDecodeError
-from dvrip.typing import EnumValue, Member, Object, String, Value, _for_json, \
-                         _json_to_int, member
+from dvrip.typing import EnumValue, Member, Object, Value, _for_json, \
+                         _json_to_int, _json_to_str, member
 
 
 D = TypeVar('D', bound='DuckValue')
@@ -66,39 +66,23 @@ def test_int_forjson_jsonto(i):
 def test_int_jsonto_forjson(i):
 	assert _for_json(_json_to_int(i)) == i
 
-def test_String():
-	assert issubclass(String, Value)
+@given(text())
+def test_str_forjson(s):
+	assert _for_json(s) == s
 
 @given(text())
-def test_String_str(s):
-	assert str(String(s)) == s
-
-@given(text(), text())
-def test_String_eq(s, t):
-	assert (String(s) == String(t)) == (s == t)
-
-@given(text())
-def test_String_repr(s):
-	assert repr(String(s)) == 'String({!r})'.format(s)
-
-@given(text())
-def test_String_forjson(s):
-	assert String(s).for_json() == s
-
-@given(text())
-def test_String_jsonto(s):
-	assert String.json_to(s) == String(s)
+def test_str_jsonto(s):
+	assert _json_to_str(s) == s
 	with raises(DVRIPDecodeError, match='not a string'):
-		String.json_to(57)
+		_json_to_str(57)
 
 @given(text())
-def test_String_forjson_jsonto(s):
-	s = String(s)
-	assert String.json_to(s.for_json()) == s
+def test_str_forjson_jsonto(s):
+	assert _json_to_str(_for_json(s)) == s
 
 @given(text())
-def test_String_jsonto_forjson(s):
-	assert String.json_to(s).for_json() == s
+def test_str_jsonto_forjson(s):
+	assert _for_json(_json_to_str(s)) == s
 
 class SubclassMember(Member):
 	pass
@@ -168,6 +152,9 @@ def test_Member_nojsonto():
 	with raises(TypeError, match='no type or conversion specified'):
 		class FailingExample(Example):
 			bad: 3 = member('Bad')
+	with raises(TypeError, match='no type or conversion specified'):
+		class FailingExample(Example):
+			bad: member[NotImplementedError] = member('Bad')
 
 @given(integers(), binary())
 def test_Object_get(i, b):

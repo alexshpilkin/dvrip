@@ -2,7 +2,6 @@ from .errors  import *
 from .packet  import *
 from .message import *
 from .login   import *
-from .typing  import String
 from .utils   import init as _init
 
 
@@ -64,7 +63,7 @@ class Connection(object):
 
 	def logout(self):
 		assert self.session is not None
-		request = ClientLogout(String(self.username), self.session)
+		request = ClientLogout(self.username, self.session)
 		reply, = self.request(request)  # pylint: disable=unbalanced-tuple-unpacking
 		DVRIPRequestError.signal(request, reply)
 		self.session = None
