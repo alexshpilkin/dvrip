@@ -8,6 +8,7 @@ from .errors     import DVRIPDecodeError
 
 V = TypeVar('V', bound='Value')
 I = TypeVar('I', bound='Integer')
+S = TypeVar('S', bound='String')
 O = TypeVar('O', bound='Object')
 
 
@@ -41,7 +42,7 @@ class Value(metaclass=ABCMeta):
 
 class Integer(Value, int):
 	def __repr__(self) -> str:
-		return 'Integer({})'.format(self)
+		return 'Integer({!r})'.format(int(self))
 
 	def __str__(self) -> str:
 		return str(int(self))
@@ -53,6 +54,20 @@ class Integer(Value, int):
 	def json_to(cls: Type[I], datum: object) -> I:
 		if not isinstance(datum, int) or isinstance(datum, bool):
 			raise DVRIPDecodeError('not an integer')
+		return cls(datum)
+
+
+class String(Value, str):
+	def __repr__(self) -> str:
+		return 'String({!r})'.format(str(self))
+
+	def for_json(self) -> str:
+		return str(self)
+
+	@classmethod
+	def json_to(cls: Type[S], datum: object) -> S:
+		if not isinstance(datum, str):
+			raise DVRIPDecodeError('not a string')
 		return cls(datum)
 
 

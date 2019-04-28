@@ -6,7 +6,7 @@ from string     import hexdigits
 from typing     import Type, TypeVar, no_type_check
 
 from dvrip.errors import DVRIPDecodeError
-from dvrip.typing import Integer, Member, Object, Value, member
+from dvrip.typing import Integer, Member, Object, String, Value, member
 
 
 D = TypeVar('D', bound='DuckValue')
@@ -77,6 +77,43 @@ def test_Integer_jsonto_forjson(i):
 
 def integers():
 	return ints().map(Integer)
+
+def test_String():
+	assert issubclass(String, Value)
+
+@given(text())
+def test_String_str(s):
+	assert str(String(s)) == s
+
+@given(text(), text())
+def test_String_eq(s, t):
+	assert (String(s) == String(t)) == (s == t)
+
+@given(text())
+def test_String_repr(s):
+	assert repr(String(s)) == 'String({!r})'.format(s)
+
+@given(text())
+def test_String_forjson(s):
+	assert String(s).for_json() == s
+
+@given(text())
+def test_String_jsonto(s):
+	assert String.json_to(s) == String(s)
+	with raises(DVRIPDecodeError, match='not a string'):
+		String.json_to(57)
+
+@given(text())
+def test_String_forjson_jsonto(s):
+	s = String(s)
+	assert String.json_to(s.for_json()) == s
+
+@given(text())
+def test_String_jsonto_forjson(s):
+	assert String.json_to(s).for_json() == s
+
+def strings():
+	return map(String, text())
 
 class SubclassMember(Member):
 	pass
