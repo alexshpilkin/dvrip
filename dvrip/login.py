@@ -2,6 +2,7 @@ from hashlib  import md5
 from string   import ascii_lowercase, ascii_uppercase, digits
 from .message import ControlMessage, ControlFilter, Status, Session
 from .errors  import DVRIPDecodeError
+from .typing  import String, Object, member
 from .utils   import (checkbool as _checkbool, checkdict as _checkdict,
                       checkempty as _checkempty, eq as _eq, init as _init,
                       popint as _popint, popkey as _popkey, popstr as _popstr,
@@ -109,71 +110,21 @@ class ClientLoginReply(ControlMessage):
 		return cls(**_pun(ClientLoginReply.__slots__))
 
 
-class ClientLogout(ControlMessage):
+class ClientLogout(Object, ControlMessage):
 	type = 1002
 
 	# FIXME 'username' unused?
-	__slots__ = ('username', 'session')
-
-	def __init__(self, username, session):  # pylint: disable=unused-argument
-		_init(ClientLogout, self)
-
-	__repr__ = _repr
-
-	def __eq__(self, other):
-		return _eq(ClientLogout, self, other)
+	username: member[String]  = member('Name')
+	session:  member[Session] = member('SessionID')
 
 	@classmethod
 	def replies(cls, number):
 		return ControlFilter(ClientLogoutReply, number)
 
-	def for_json(self):
-		return {
-			'Name':      self.username,
-			'SessionID': self.session.for_json(),
-		}
 
-	@classmethod
-	def json_to(cls, json):
-		# pylint: disable=unused-variable
-
-		_checkdict(json, 'client logout reply')
-		username = _popstr(json, 'Name', 'username')
-		session  = Session.json_to(_popstr(json, 'SessionID', 'session ID'))
-		_checkempty(json, 'client logout reply')
-
-		return cls(**_pun(ClientLogout.__slots__))
-
-
-class ClientLogoutReply(ControlMessage):
+class ClientLogoutReply(Object, ControlMessage):
 	type = 1003
 
-	# FIXME 'username' unused?
-	__slots__ = ('status', 'username', 'session')
-
-	def __init__(self, status, username, session):  # pylint: disable=unused-argument
-		_init(ClientLogoutReply, self)
-
-	__repr__ = _repr
-
-	def __eq__(self, other):
-		return _eq(ClientLogoutReply, self, other)
-
-	def for_json(self):
-		return {
-			'Ret':       self.status.for_json(),
-			'Name':      self.username,
-			'SessionID': self.session.for_json(),
-		}
-
-	@classmethod
-	def json_to(cls, json):
-		# pylint: disable=unused-variable
-
-		_checkdict(json, 'client logout reply')
-		status   = Status.json_to(_popint(json, 'Ret', 'status code'))
-		username = _popstr(json, 'Name', 'username')
-		session  = Session.json_to(_popstr(json, 'SessionID', 'session ID'))
-		_checkempty(json, 'client logout reply')
-
-		return cls(**_pun(ClientLogoutReply.__slots__))
+	status:   member[Status]  = member('Ret')
+	username: member[String]  = member('Name')
+	session:  member[Session] = member('SessionID')

@@ -1,12 +1,14 @@
+from enum       import IntEnum
 from hypothesis import given
 from hypothesis.strategies \
                 import binary, integers as ints, sampled_from, text
 from pytest     import raises  # type: ignore
 from string     import hexdigits
-from typing     import Type, TypeVar, no_type_check
+from typing     import Callable, Type, TypeVar, no_type_check
 
 from dvrip.errors import DVRIPDecodeError
-from dvrip.typing import Integer, Member, Object, String, Value, member
+from dvrip.typing import EnumValue, Integer, Member, Object, String, Value, \
+                         member
 
 
 D = TypeVar('D', bound='DuckValue')
@@ -35,6 +37,15 @@ def test_Value_subclasshook():
 	assert not issubclass(Value, SubclassValue)
 	assert issubclass(DuckValue, Value)
 	assert not issubclass(DuckNoValue, Value)
+
+class SubclassEnumValue(EnumValue, IntEnum):
+	ZERO = 0
+	ONE  = 1
+
+def test_EnumValue():
+	assert issubclass(SubclassEnumValue, IntEnum)
+	assert issubclass(SubclassEnumValue, Value)
+	assert SubclassEnumValue.ZERO == 0 and SubclassEnumValue.ONE == 1
 
 def test_Integer():
 	assert issubclass(Integer, Value)
@@ -112,14 +123,15 @@ def test_String_forjson_jsonto(s):
 def test_String_jsonto_forjson(s):
 	assert String.json_to(s).for_json() == s
 
-def strings():
-	return map(String, text())
-
 class SubclassMember(Member):
 	pass
 
 class DuckMember(object):
 	def __set_name__(self, _type: Type['Object'], _name: str) -> None:
+		pass
+	def push(self, push: Callable[[str, object], None], value: set) -> None:
+		pass
+	def pop(self, pop: Callable[[str], object]) -> set:
 		pass
 
 class DuckNoMember(DuckMember):

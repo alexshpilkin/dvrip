@@ -1,9 +1,12 @@
 from abc         import ABCMeta, abstractmethod
 from collections import OrderedDict
+from enum        import Enum, EnumMeta
 from sys         import intern
 from typing      import Any, Callable, Generic, MutableMapping, NamedTuple, \
                         Optional, Tuple, TYPE_CHECKING, Type, TypeVar, Union, \
                         get_type_hints
+from typing_extensions \
+                 import Protocol, runtime
 from .errors     import DVRIPDecodeError
 
 V = TypeVar('V', bound='Value')
@@ -12,32 +15,52 @@ S = TypeVar('S', bound='String')
 O = TypeVar('O', bound='Object')
 
 
-class Value(metaclass=ABCMeta):
-	__slots__ = ()
+if TYPE_CHECKING:  # pragma: no cover
+	class Value(Protocol):
+		# pylint: disable=no-self-use,unused-argument
 
-	@abstractmethod
-	def for_json(self) -> object:
-		raise NotImplementedError  # pragma: no cover
+		def for_json(self) -> object:
+			...
 
-	@classmethod
-	@abstractmethod
-	def json_to(cls: Type[V], datum: object) -> V:
-		raise NotImplementedError  # pragma: no cover
+		@classmethod
+		def json_to(cls: Type[V], datum: object) -> V:
+			...
 
-	@classmethod
-	def __subclasshook__(cls, other: Type) -> bool:
-		if cls is not Value:
-			return NotImplemented
-		for method in ('for_json', 'json_to'):
-			for base in other.__mro__:
-				if method not in base.__dict__:
-					continue
-				if base.__dict__[method] is None:
-					return NotImplemented
-				break
-			else:
+else:
+	class Value(metaclass=ABCMeta):
+		__slots__ = ()
+
+		@abstractmethod
+		def for_json(self) -> object:
+			raise NotImplementedError  # pragma: no cover
+
+		@classmethod
+		@abstractmethod
+		def json_to(cls: Type[V], datum: object) -> V:
+			raise NotImplementedError  # pragma: no cover
+
+		@classmethod
+		def __subclasshook__(cls, other: Type) -> bool:
+			if cls is not Value:
 				return NotImplemented
-		return True
+			for method in ('for_json', 'json_to'):
+				for base in other.__mro__:
+					if method not in base.__dict__:
+						continue
+					if base.__dict__[method] is None:
+						return NotImplemented
+					break
+				else:
+					return NotImplemented
+			return True
+
+
+class EnumValueMeta(EnumMeta, ABCMeta):
+	pass
+
+
+class EnumValue(Value, Enum, metaclass=EnumValueMeta):  # pylint: disable=abstract-method
+	pass
 
 
 class Integer(Value, int):
@@ -78,40 +101,57 @@ def _isunder(name: str) -> bool:
 def _for_json(obj) -> object:
 	return obj.for_json()
 
+if TYPE_CHECKING:  # pragma: no cover
+	@runtime
+	class Member(Generic[V], Protocol):
+		# pylint: disable=no-self-use,unused-argument
+		name: str
 
-class Member(Generic[V], metaclass=ABCMeta):
-	__slots__ = ('__name__',)
-	__name__: str
+		def __set_name__(self, _type: 'ObjectMeta', name: str) -> None:
+			self.name = name
 
-	@abstractmethod
-	def __set_name__(self, _type: 'ObjectMeta', name: str) -> None:
-		self.__name__ = name
+		def push(self,
+		         push: Callable[[str, object], None],
+		         value: V
+		        ) -> None:
+			...
 
-	@abstractmethod
-	def push(self,
-	         push: Callable[[str, object], None],
-	         value: V
-	        ) -> None:  # FIXME
-		pass
+		def pop(self, pop: Callable[[str], object]) -> V:
+			...
 
-	@abstractmethod
-	def pop(self, pop: Callable[[str], object]) -> V:  # FIXME
-		raise NotImplementedError  # pragma: no cover
+else:
+	class Member(Generic[V], metaclass=ABCMeta):
+		__slots__ = ('name',)
+		name: str
 
-	@classmethod
-	def __subclasshook__(cls, other: Type) -> bool:
-		if cls is not Member:
-			return NotImplemented
-		for method in ('__set_name__',):
-			for base in other.__mro__:
-				if method not in base.__dict__:
-					continue
-				if base.__dict__[method] is None:
-					return NotImplemented
-				break
-			else:
+		def __set_name__(self, _type: 'ObjectMeta', name: str) -> None:
+			self.name = name
+
+		@abstractmethod
+		def push(self,
+			 push: Callable[[str, object], None],
+			 value: V
+			) -> None:
+			pass
+
+		@abstractmethod
+		def pop(self, pop: Callable[[str], object]) -> V:
+			raise NotImplementedError  # pragma: no cover
+
+		@classmethod
+		def __subclasshook__(cls, other: Type) -> bool:
+			if cls is not Member:
 				return NotImplemented
-		return True
+			for method in ('__set_name__', 'push', 'pop'):
+				for base in other.__mro__:
+					if method not in base.__dict__:
+						continue
+					if base.__dict__[method] is None:
+						return NotImplemented
+					break
+				else:
+					return NotImplemented
+			return True
 
 
 _SENTINEL = object()
@@ -153,10 +193,10 @@ class member(Generic[V], Member[V]):  # pylint: disable=unsubscriptable-object
 	def __get__(self, obj: 'Object', _type: type) -> Union['member[V]', V]:
 		if obj is None:
 			return self
-		return getattr(obj._values_, self.__name__)  # pylint: disable=protected-access
+		return getattr(obj._values_, self.name)  # pylint: disable=protected-access
 
 	def __set__(self, obj: 'Object', value: V) -> None:
-		return setattr(obj._values_, self.__name__, value)  # pylint: disable=protected-access
+		return setattr(obj._values_, self.name, value)  # pylint: disable=protected-access
 
 	def push(self, push, value):
 		super().push(push, value)

@@ -48,13 +48,12 @@ class Session(object):
 		return '0x{:08X}'.format(self.id)
 
 	@classmethod
-	def json_to(cls, json):
-		assert isinstance(json, str)
-		if (json[:2] != '0x' or len(json) != 10 or
-		    not all(c in hexdigits for c in json[2:])):
-			raise DVRIPDecodeError('{!r} is not a valid session ID'
-			                       .format(json))
-		return cls(id=int(json[2:], 16))
+	def json_to(cls, datum):
+		assert isinstance(datum, str)
+		if (datum[:2] != '0x' or len(datum) != 10 or
+		    not all(c in hexdigits for c in datum[2:])):
+			raise DVRIPDecodeError('not a session ID')
+		return cls(id=int(datum[2:], 16))
 
 
 @unique
@@ -82,12 +81,11 @@ class Status(Enum):
 		return self.code
 
 	@classmethod
-	def json_to(cls, json):
+	def json_to(cls, datum):
 		try:
-			return cls(json)  # pylint: disable=no-value-for-parameter
+			return cls(datum)  # pylint: disable=no-value-for-parameter
 		except ValueError:
-			raise DVRIPDecodeError('{!r} is not a valid status code'
-			                       .format(json))
+			raise DVRIPDecodeError('not a known status code')
 
 	# pylint: disable=line-too-long
 	OK       = (100, True,  'OK')
