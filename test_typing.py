@@ -8,8 +8,7 @@ from typing     import Callable, Type, TypeVar, no_type_check
 
 from dvrip.errors import DVRIPDecodeError
 from dvrip.typing import EnumValue, Member, Object, Value, _for_json, \
-                         _json_to_bool, _json_to_int, _json_to_str, member, \
-                         optionalmember
+                         _json_to, member, optionalmember
 
 
 def test_forjson():
@@ -58,17 +57,17 @@ def test_bool_forjson(b):
 
 @given(booleans())
 def test_bool_jsonto(b):
-	assert _json_to_bool(b) == b
+	assert _json_to(bool)(b) == b
 	with raises(DVRIPDecodeError, match='not a boolean'):
-		_json_to_bool(1)
+		_json_to(bool)(1)
 
 @given(booleans())
 def test_bool_forjson_jsonto(b):
-	assert _json_to_bool(_for_json(b)) == b
+	assert _json_to(bool)(_for_json(b)) == b
 
 @given(booleans())
 def test_bool_jsonto_forjson(b):
-	assert _for_json(_json_to_bool(b)) == b
+	assert _for_json(_json_to(bool)(b)) == b
 
 @given(integers())
 def test_int_forjson(i):
@@ -76,18 +75,18 @@ def test_int_forjson(i):
 
 @given(integers())
 def test_int_jsonto(i):
-	assert _json_to_int(i) == i
+	assert _json_to(int)(i) == i
 	with raises(DVRIPDecodeError, match='not an integer'):
 		# False and True are tricky, because issubclass(bool, int)
-		_json_to_int(False)
+		_json_to(int)(False)
 
 @given(integers())
 def test_int_forjson_jsonto(i):
-	assert _json_to_int(_for_json(i)) == i
+	assert _json_to(int)(_for_json(i)) == i
 
 @given(integers())
 def test_int_jsonto_forjson(i):
-	assert _for_json(_json_to_int(i)) == i
+	assert _for_json(_json_to(int)(i)) == i
 
 @given(text())
 def test_str_forjson(s):
@@ -95,17 +94,17 @@ def test_str_forjson(s):
 
 @given(text())
 def test_str_jsonto(s):
-	assert _json_to_str(s) == s
+	assert _json_to(str)(s) == s
 	with raises(DVRIPDecodeError, match='not a string'):
-		_json_to_str(57)
+		_json_to(str)(57)
 
 @given(text())
 def test_str_forjson_jsonto(s):
-	assert _json_to_str(_for_json(s)) == s
+	assert _json_to(str)(_for_json(s)) == s
 
 @given(text())
 def test_str_jsonto_forjson(s):
-	assert _for_json(_json_to_str(s)) == s
+	assert _for_json(_json_to(str)(s)) == s
 
 class SubclassMember(Member):
 	pass
@@ -144,7 +143,7 @@ def hextext():
 	            .filter(lambda s: len(s) % 2 == 0))
 
 class Example(Object):
-	mint: member[int] = member('Int', _json_to_int, default=2)
+	mint: member[int] = member('Int', _json_to(int), default=2)
 	mhex: member[str] = member('Hex', fromhex, tohex, default=b'\x57')
 
 class BigExample(Example):
@@ -157,7 +156,7 @@ class BigExample(Example):
 	nhex: member[str] = member("Hex'", fromhex, tohex, default=b'\x42')
 
 class NestedExample(Object):
-	mint = member('Int', _json_to_int)  # type: ignore
+	mint = member('Int', _json_to(int))
 	mobj: member[Example] = member('Obj')
 
 class ConflictExample(Object):
