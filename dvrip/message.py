@@ -4,6 +4,7 @@ from json    import dumps, load
 from string  import hexdigits
 from .errors import DVRIPDecodeError
 from .packet import Packet
+from .typing import for_json, json_to
 from .utils  import eq as _eq, init as _init
 
 __all__ = ('Session', 'Status', 'ControlMessage', 'ControlFilter')
@@ -45,11 +46,11 @@ class Session(object):
 		return hash(self.id)
 
 	def for_json(self):
-		return '0x{:08X}'.format(self.id)
+		return for_json('0x{:08X}'.format(self.id))
 
 	@classmethod
 	def json_to(cls, datum):
-		assert isinstance(datum, str)
+		datum = json_to(str)(datum)
 		if (datum[:2] != '0x' or len(datum) != 10 or
 		    not all(c in hexdigits for c in datum[2:])):
 			raise DVRIPDecodeError('not a session ID')
@@ -78,12 +79,12 @@ class Status(Enum):
 		return self.success
 
 	def for_json(self):
-		return self.code
+		return for_json(self.code)
 
 	@classmethod
 	def json_to(cls, datum):
 		try:
-			return cls(datum)  # pylint: disable=no-value-for-parameter
+			return cls(json_to(int)(datum))  # pylint: disable=no-value-for-parameter
 		except ValueError:
 			raise DVRIPDecodeError('not a known status code')
 

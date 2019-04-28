@@ -54,7 +54,7 @@ else:
 			return True
 
 
-def _for_json(obj: V.__bound__) -> object:
+def for_json(obj: V.__bound__) -> object:
 	try:
 		return obj.for_json()
 	except AttributeError:
@@ -63,7 +63,7 @@ def _for_json(obj: V.__bound__) -> object:
 		raise TypeError('not a JSON value')
 
 
-def _json_to(type):  # pylint: disable=redefined-builtin
+def json_to(type):  # pylint: disable=redefined-builtin
 	if issubclass(type, Value):
 		return type.json_to
 	if issubclass(type, bool):  # needs to come before 'int'
@@ -161,8 +161,8 @@ class member(Member[V]):
 
 	def __init__(self,
 	             key:      str,
-	             json_to:  Optional[Callable[[object], V]] = None,
-	             for_json: Callable[[V], object] = _for_json,
+	             json_to:  Optional[Callable[[object], V]] = None,  # pylint: disable=redefined-outer-name
+	             for_json: Callable[[V], object] = for_json,        # pylint: disable=redefined-outer-name
 	             default = _SENTINEL
 	            ) -> None:
 		self.key      = key
@@ -178,7 +178,7 @@ class member(Member[V]):
 			if (is_generic_type(ann) and
 			    get_origin(ann) == type(self)):
 				arg, = get_args(ann)
-				self.json_to = _json_to(arg)
+				self.json_to = json_to(arg)
 		if self.json_to is None:
 			raise TypeError('no type or conversion '
 			                'specified for member {!r}'
