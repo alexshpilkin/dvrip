@@ -6,9 +6,6 @@ good-names=i,j,k
 
 [MESSAGES CONTROL]
 disable=
-	access-member-before-definition,  # E0203 -- fooled by utils.init
-	no-member,                        # E1101 -- fooled by utils.init
-	attribute-defined-outside-init,   # W0201 -- fooled by utils.init
 	mixed-indentation,                # W0312 -- as intended
 	invalid-name,                     # C0103 -- as intended
 	missing-docstring,                # C0111 -- for now

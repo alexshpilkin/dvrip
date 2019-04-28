@@ -2,14 +2,14 @@ from .errors  import *
 from .packet  import *
 from .message import *
 from .login   import *
-from .utils   import init as _init
 
 
 class Sequence(object):  # pylint: disable=too-few-public-methods
 	__slots__ = ('session', 'number')
 
-	def __init__(self, session, number):  # pylint: disable=unused-argument
-		_init(Sequence, self)
+	def __init__(self, session, number):
+		self.session = session
+		self.number  = number
 
 	def packet(self, *args, **named):
 		packet = Packet(self.session.id, self.number, *args, **named)
@@ -21,11 +21,12 @@ class Connection(object):
 
 	__slots__ = ('socket', 'file', 'session', 'number', 'username')
 
-	def __init__(self, socket, session=None, number=0):  # pylint: disable=unused-argument
-		# pylint: disable=unused-variable
-		file     = socket.makefile('rwb')
-		username = None
-		_init(Connection, self)
+	def __init__(self, socket, session=None, number=0):
+		self.socket   = socket
+		self.file     = socket.makefile('rwb')
+		self.session  = session
+		self.number   = number
+		self.username = None
 
 	def sequence(self):
 		s = Sequence(self.session, self.number)

@@ -1,113 +1,75 @@
-from hashlib  import md5
+from enum     import Enum, unique
+from hashlib  import md5 as MD5
 from string   import ascii_lowercase, ascii_uppercase, digits
 from .message import ControlMessage, ControlFilter, Status, Session
 from .errors  import DVRIPDecodeError
-from .typing  import Object, member
-from .utils   import (checkbool as _checkbool, checkdict as _checkdict,
-                      checkempty as _checkempty, eq as _eq, init as _init,
-                      popint as _popint, popkey as _popkey, popstr as _popstr,
-                      pun as _pun, repr as _repr)
+from .typing  import Object, for_json, json_to, member, optionalmember
 
-__all__ = ('md5crypt', 'ClientLogin', 'ClientLoginReply', 'ClientLogout',
+__all__ = ('xmmd5', 'Hash', 'ClientLogin', 'ClientLoginReply', 'ClientLogout',
            'ClientLogoutReply')
 
 
-_MD5MAGIC = (digits + ascii_uppercase + ascii_lowercase).encode('ascii')
+_XMMD5MAGIC = (digits + ascii_uppercase + ascii_lowercase)
 
-def md5crypt(password):
-	mdfive = md5(bytes(password)).digest()
-	return bytes(_MD5MAGIC[(a+b) % len(_MD5MAGIC)]
-	             for a, b in zip(mdfive[0::2], mdfive[1::2]))[:8]
+def xmmd5(password):
+	md5 = MD5(password.encode('utf-8')).digest()
+	return ''.join(_XMMD5MAGIC[(a+b) % len(_XMMD5MAGIC)]
+	               for a, b in zip(md5[0::2], md5[1::2]))[:8]
 
 
-class ClientLogin(ControlMessage):
+@unique
+class Hash(Enum):
+	__slots__ = ('id', 'func')
+
+	def __new__(cls, id, func):  # pylint: disable=redefined-builtin
+		self = object.__new__(cls)
+		self._value_ = id  # pylint: disable=protected-access
+		self.id      = id
+		self.func    = func
+		return self
+
+	def __repr__(self):
+		return '{}.{}'.format(type(self).__qualname__, self._name_)  # pylint: disable=no-member
+
+	def __str__(self):
+		return self.id
+
+	def for_json(self):
+		return for_json(self.id)
+
+	@classmethod
+	def json_to(cls, datum):
+		try:
+			return cls(json_to(str)(datum))  # pylint: disable=no-value-for-parameter
+		except ValueError:
+			raise DVRIPDecodeError('not a known hash function')
+
+	XMMD5 = ('MD5', xmmd5)
+
+
+class ClientLogin(Object, ControlMessage):
 	type = 1000
 
-	__slots__ = ('username', 'passhash', 'service')
-
-	def __init__(self, username, password=None, service='DVRIP-Web',  # pylint: disable=unused-argument
-	             passhash=None):                                      # pylint: disable=unused-argument
-		assert password is not None or passhash is not None
-		if passhash is None:
-			passhash = (md5crypt(password.encode('utf-8'))
-			           .decode('ascii'))
-		_init(ClientLogin, self)
-
-	__repr__ = _repr
-
-	def __eq__(self, other):
-		return _eq(ClientLogin, self, other)
+	username: member[str]  = member('UserName')
+	passhash: member[str]  = member('PassWord')
+	hash:     member[Hash] = member('EncryptType', default=Hash.XMMD5)
+	service:  member[str]  = member('LoginType', default='DVRIP-Web')
 
 	@classmethod
 	def replies(cls, number):
 		return ControlFilter(ClientLoginReply, number)
 
-	def for_json(self):
-		return {
-			'UserName':    self.username,
-			'PassWord':    self.passhash,
-			'EncryptType': 'MD5',
-			'LoginType':   self.service,
-		}
 
-	@classmethod
-	def json_to(cls, json):
-		# pylint: disable=unused-variable
-
-		_checkdict(json, 'client login request')
-		username = _popstr(json, 'UserName',    'username')
-		passhash = _popstr(json, 'PassWord',    'password')
-		service  = _popstr(json, 'LoginType',   'service')
-		hashfunc = _popstr(json, 'EncryptType', 'hash function')
-		_checkempty(json, 'client login request')
-
-		if hashfunc != 'MD5':
-			raise DVRIPDecodeError('{!r} is not a valid hash '
-			                       'function'.format(hashfunc))
-		return cls(**_pun(ClientLogin.__slots__))
-
-
-class ClientLoginReply(ControlMessage):
+class ClientLoginReply(Object, ControlMessage):
 	type = 1001
 
-	__slots__ = ('status', 'session', 'timeout', 'channels', 'views',
-	             'chassis', 'encrypt')
-
-	def __init__(self, status, session, timeout,      # pylint: disable=unused-argument,too-many-arguments
-	             channels, views, chassis, encrypt):  # pylint: disable=unused-argument,too-many-arguments
-		_init(ClientLoginReply, self)
-
-	__repr__ = _repr
-
-	def __eq__(self, other):
-		return _eq(ClientLoginReply, self, other)
-
-	def for_json(self):
-		return {
-			'Ret':           self.status.for_json(),
-			'SessionID':     self.session.for_json(),
-			'AliveInterval': self.timeout,
-			'ChannelNum':    self.channels,
-			'ExtraChannel':  self.views,
-			'DeviceType ':   self.chassis,
-			'DataUseAES':    self.encrypt,
-		}
-
-	@classmethod
-	def json_to(cls, json):
-		# pylint: disable=unused-variable
-
-		_checkdict(json, 'client login reply')
-		status   = Status.json_to(_popint(json, 'Ret', 'status code'))
-		session  = Session.json_to(_popkey(json, 'SessionID', 'session ID'))
-		timeout  = _popint(json, 'AliveInterval', 'timeout value')
-		channels = _popint(json, 'ChannelNum',    'channel count')
-		views    = _popint(json, 'ExtraChannel',  'view count')
-		chassis  = _popstr(json, 'DeviceType ',   'chassis type')
-		encrypt  = _checkbool(json.pop('DataUseAES', False), 'encryption flag')
-		_checkempty(json, 'client login reply')
-
-		return cls(**_pun(ClientLoginReply.__slots__))
+	status:   member[Status]       = member('Ret')
+	session:  member[Session]      = member('SessionID')
+	timeout:  member[int]          = member('AliveInterval')
+	channels: member[int]          = member('ChannelNum')
+	views:    member[int]          = member('ExtraChannel')
+	chassis:  member[str]          = member('DeviceType ')
+	encrypt:  optionalmember[bool] = optionalmember('DataUseAES')
 
 
 class ClientLogout(Object, ControlMessage):

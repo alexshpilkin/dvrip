@@ -6,6 +6,8 @@ from setuptools.command.sdist import sdist as _sdist  # type: ignore
 from shlex                    import split  # type: ignore
 from sys                      import exit   # pylint: disable=redefined-builtin
 
+# pylint: disable=attribute-defined-outside-init  # *_args are conventionally so
+
 
 class mypy(Command):
 	description = 'validate type annotations with mypy'

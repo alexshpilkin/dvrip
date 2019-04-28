@@ -5,7 +5,6 @@ from string  import hexdigits
 from .errors import DVRIPDecodeError
 from .packet import Packet
 from .typing import for_json, json_to
-from .utils  import eq as _eq, init as _init
 
 __all__ = ('Session', 'Status', 'ControlMessage', 'ControlFilter')
 
@@ -33,14 +32,16 @@ class _ChunkReader(RawIOBase):
 class Session(object):
 	__slots__ = ('id',)
 
-	def __init__(self, id):  # pylint: disable=unused-argument,redefined-builtin
-		_init(Session, self)
+	def __init__(self, id):  # pylint: disable=redefined-builtin
+		self.id = id
 
 	def __repr__(self):
 		return 'Session(0x{:08X})'.format(self.id)
 
 	def __eq__(self, other):
-		return _eq(Session, self, other)
+		if not isinstance(other, Session):
+			return NotImplemented
+		return self.id == other.id
 
 	def __hash__(self):
 		return hash(self.id)
@@ -63,14 +64,14 @@ class Status(Enum):
 
 	def __new__(cls, code, success, message):
 		self = object.__new__(cls)
+		self._value_ = code  # pylint: disable=protected-access
 		self.code    = code
 		self.success = success
 		self.message = message
-		self._value_ = code  # pylint: disable=protected-access
 		return self
 
 	def __repr__(self):
-		return '{}({})'.format(type(self).__qualname__, self._value_)
+		return '{}({!r})'.format(type(self).__qualname__, self._value_)
 
 	def __str__(self):
 		return self.message
@@ -185,12 +186,12 @@ class ControlMessage(object):
 class ControlFilter(object):
 	__slots__ = ('cls', 'number', 'count', 'limit', 'packets')
 
-	def __init__(self, cls, number):  # pylint: disable=unused-argument
-		#pylint: disable=unused-variable
-		count   = 0
-		limit   = None
-		packets = None
-		_init(ControlFilter, self)
+	def __init__(self, cls, number):
+		self.cls     = cls
+		self.number  = number
+		self.count   = 0
+		self.limit   = None
+		self.packets = None
 
 	def accept(self, packet):
 		# FIXME No idea if this interpretation of sequence

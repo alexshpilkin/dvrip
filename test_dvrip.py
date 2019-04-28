@@ -10,39 +10,13 @@ from socket     import socket as Socket
 from dvrip         import *
 from dvrip.message import _ChunkReader
 from dvrip.packet  import _mirrorproperty
-from dvrip.utils   import checkbool, checkdict, checkempty, checkint, \
-                          checkstr, popkey
 
 
-def test_md5crypt_empty():
-	assert md5crypt(b'') == b'tlJwpbo6'
+def test_xmmd5_empty():
+	assert xmmd5('') == 'tlJwpbo6'
 
-def test_md5crypt_tluafed():
-	assert md5crypt(b'tluafed') == b'OxhlwSG8'
-
-def test_checkbool_invalid():
-	with raises(DVRIPDecodeError, match='not a boolean in test'):
-		checkbool(None, 'test')
-
-def test_checkint_invalid():
-	with raises(DVRIPDecodeError, match='not an integer in test'):
-		checkint(None, 'test')
-
-def test_checkstr_invalid():
-	with raises(DVRIPDecodeError, match='not a string in test'):
-		checkstr(None, 'test')
-
-def test_checkdict_invalid():
-	with raises(DVRIPDecodeError, match='not a dictionary in test'):
-		checkdict(None, 'test')
-
-def test_checkempty_invalid():
-	with raises(DVRIPDecodeError, match='extra keys in test'):
-		checkempty({'spam': 'sausages'}, 'test')
-
-def test_popkey_invalid():
-	with raises(DVRIPDecodeError, match='test missing'):
-		popkey({'spam': 'sausages'}, 'ham', 'test')
+def test_xmmd5_tluafed():
+	assert xmmd5('tluafed') == 'OxhlwSG8'
 
 def test_mirrorproperty():
 	class Test:  # pylint: disable=too-few-public-methods
@@ -172,7 +146,8 @@ def noconn(conn):
 
 def test_ClientLogin_repr():
 	assert (repr(ClientLogin('admin', passhash='def', service='abc')) ==
-	        "ClientLogin('admin', passhash='def', service='abc')")
+	        "ClientLogin(username='admin', passhash='def', "
+	                    "hash=Hash.XMMD5, service='abc')")
 
 def test_ClientLogin_eq():
 	assert ClientLogin('admin', '') == ClientLogin('admin', '')
@@ -181,7 +156,7 @@ def test_ClientLogin_eq():
 	assert ClientLogin('admin', '') != Ellipsis
  
 def test_ClientLogin_topackets(noconn):
-	p, = tuple(ClientLogin('admin', '').topackets(noconn))
+	p, = tuple(ClientLogin('admin', 'tlJwpbo6').topackets(noconn))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xE8\x03\x5F\x00\x00\x00'
 	                      b'{"UserName": "admin", '
@@ -191,7 +166,7 @@ def test_ClientLogin_topackets(noconn):
 	                      b'\x0A\x00')
 
 def test_ClientLogin_topackets_chunked(noconn):
-	p, q = tuple(ClientLogin('a'*16384, '').topackets(noconn))
+	p, q = tuple(ClientLogin('a'*16384, 'tlJwpbo6').topackets(noconn))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x02\x00\xE8\x03\x00\x40\x00\x00'
 	                      b'{"UserName": "' + b'a' * (16384 - 14))
@@ -209,7 +184,7 @@ def test_ClientLogin_frompackets_invalid():
 	                    b'\x0A\x00',
 	                    fragments=0, fragment=0)
 	with raises(DVRIPDecodeError,
-	            match="'SPAM' is not a valid hash function"):
+	            match='not a known hash function'):
 		ClientLogin.frompackets([packet])
 
 @given(text(), text())

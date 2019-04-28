@@ -54,7 +54,7 @@ else:
 			return True
 
 
-def for_json(obj: V.__bound__) -> object:
+def for_json(obj: V.__bound__) -> object:  # pylint: disable=no-member
 	try:
 		return obj.for_json()
 	except AttributeError:
@@ -107,7 +107,7 @@ if TYPE_CHECKING:  # pragma: no cover
 		# pylint: disable=no-self-use,unused-argument
 		name: str
 
-		def __set_name__(self, _type: 'ObjectMeta', name: str) -> None:
+		def __set_name__(self, type: 'ObjectMeta', name: str) -> None:  # pylint: disable=redefined-builtin
 			self.name = name
 
 		def push(self,

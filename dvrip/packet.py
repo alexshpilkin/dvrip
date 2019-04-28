@@ -1,15 +1,13 @@
 from io      import BytesIO
 from struct  import Struct
 from .errors import DVRIPDecodeError
-from .utils  import init as _init
 
 __all__ = ('Packet',)
 
 
 class _mirrorproperty:
-	__slots__ = ('attr',)
-	def __init__(self, attr):  # pylint: disable=unused-argument
-		_init(_mirrorproperty, self)
+	def __init__(self, attr):
+		self.attr = attr
 	def __get__(self, obj, type=None):  # pylint: disable=redefined-builtin
 		return getattr(obj, self.attr)
 	def __set__(self, obj, value):
@@ -41,10 +39,8 @@ class Packet(object):
 	__slots__ = ('session', 'number', '_fragment0', '_fragment1', 'type',
 	             'payload')
 
-	def __init__(self, session=None, number=None,  # pylint: disable=unused-argument
-	             type=None, payload=None, *,       # pylint: disable=unused-argument, redefined-builtin
-	             fragments=None, channel=None,     # pylint: disable=unused-argument
-	             fragment=None, end=None):         # pylint: disable=unused-argument
+	def __init__(self, session=None, number=None, type=None, payload=None,  # pylint: disable=redefined-builtin
+	             *, fragments=None, channel=None, fragment=None, end=None):
 		super().__init__()
 
 		assert (fragments is None and fragment is None or
@@ -52,7 +48,12 @@ class Packet(object):
 		_fragment0 = fragments if fragments is not None else channel
 		_fragment1 = fragment  if fragment  is not None else end
 
-		_init(Packet, self)
+		self.session   = session
+		self.number     = number
+		self._fragment0 = _fragment0
+		self._fragment1 = _fragment1
+		self.type       = type
+		self.payload    = payload
 
 	fragments = _mirrorproperty('_fragment0')
 	channel   = _mirrorproperty('_fragment0')
