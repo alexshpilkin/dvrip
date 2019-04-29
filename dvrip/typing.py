@@ -9,6 +9,10 @@ from typing_extensions import Protocol, runtime
 from typing_inspect import is_generic_type, get_origin, get_args  # type: ignore
 from .errors     import DVRIPDecodeError
 
+__all__ = ('Value', 'for_json', 'json_to', 'jsontype', 'EnumValueMeta',
+           'EnumValue', 'Member', 'member', 'optionalmember', 'absentmember',
+           'ObjectMeta', 'Object')
+
 T = TypeVar('T')
 V = TypeVar('V', bound='Union[bool, int, str, Value]')
 O = TypeVar('O', bound='Object')
@@ -173,6 +177,28 @@ def _compose(*args: Callable[[Any], Any]) -> Callable[[Any], Any]:
 	     env)
 	return env['composition']
 
+
+class absentmember(Member[Union['NotImplemented', T]]):  # see python/mypy#4791
+	default = NotImplemented
+	key     = NotImplemented
+
+	def __get__(self, obj: 'Object', _type: type) -> Union['member[T]', T]:
+		if obj is None:
+			return self
+		return getattr(obj._values_, self.name)  # pylint: disable=protected-access
+
+	def __set__(self, obj: 'Object', value: T) -> None:
+		return setattr(obj._values_, self.name, value)  # pylint: disable=protected-access
+
+	def push(self, push, value):
+		if value is not NotImplemented:
+			raise ValueError('value provided for absent member {!r}'
+			                 .format(self.name))
+
+	def pop(self, pop):
+		return NotImplemented
+
+
 class member(Member[T]):
 	__slots__ = ('key', 'pipe', 'default', 'json_to', 'for_json')
 
@@ -223,7 +249,7 @@ class member(Member[T]):
 		return self.json_to(pop(self.key))
 
 
-class optionalmember(member[V]):
+class optionalmember(member[Union['NotImplemented', T]]):
 	default = NotImplemented
 
 	def push(self, push, value):

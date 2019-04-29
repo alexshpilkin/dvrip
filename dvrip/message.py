@@ -7,7 +7,8 @@ from .errors import DVRIPDecodeError
 from .packet import Packet
 from .typing import Value, for_json, json_to
 
-__all__ = ('Session', 'Status', 'ControlMessage', 'ControlFilter')
+__all__ = ('hextype', 'Session', 'Status', 'ControlMessage', 'ControlFilter',
+           'ControlRequest')
 
 
 class _ChunkReader(RawIOBase):
@@ -30,6 +31,19 @@ class _ChunkReader(RawIOBase):
 		return len(chunk)
 
 
+def _hex_for_json(value: int) -> str:
+	return json_to(str)('0x{:08X}'.format(value))
+
+def _json_to_hex(datum: str) -> int:
+	datum = json_to(str)(datum)
+	if (datum[:2] != '0x' or len(datum) > 10 or
+	    not all(c in hexdigits for c in datum[2:])):
+		raise DVRIPDecodeError('not a session ID')
+	return int(datum[2:], 16)
+
+hextype = (_json_to_hex, _hex_for_json)
+
+
 class Session(object):
 	__slots__ = ('id',)
 
@@ -48,15 +62,11 @@ class Session(object):
 		return hash(self.id)
 
 	def for_json(self):
-		return for_json('0x{:08X}'.format(self.id))
+		return _hex_for_json(self.id)
 
 	@classmethod
 	def json_to(cls, datum):
-		datum = json_to(str)(datum)
-		if (datum[:2] != '0x' or len(datum) != 10 or
-		    not all(c in hexdigits for c in datum[2:])):
-			raise DVRIPDecodeError('not a session ID')
-		return cls(id=int(datum[2:], 16))
+		return cls(id=_json_to_hex(datum))
 
 
 @unique
@@ -198,6 +208,9 @@ class ControlFilter(object):
 		self.limit   = None
 		self.packets = None
 
+	def __bool__(self):
+		return self.limit is None or self.count < self.limit
+
 	def accept(self, packet):
 		if packet.type != self.cls.type:
 			return None
@@ -220,5 +233,13 @@ class ControlFilter(object):
 			return ()
 		return ((self.number, self.cls.frompackets(self.packets)),)
 
-	def __bool__(self):
-		return self.limit is None or self.count < self.limit
+
+class ControlRequest(ControlMessage):
+	@property
+	@abstractmethod
+	def reply(self):
+		raise NotImplementedError  # pragma: no cover
+
+	@classmethod
+	def replies(cls, number):
+		return ControlFilter(cls.reply, number)

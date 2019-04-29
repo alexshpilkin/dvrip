@@ -1,6 +1,6 @@
 from hypothesis import given
 from hypothesis.strategies \
-                import booleans, integers, sampled_from, text
+                import booleans, integers, none, one_of, sampled_from, text
 from io         import BytesIO, RawIOBase
 from mock       import Mock
 from pytest     import fixture, raises
@@ -8,6 +8,7 @@ from socket     import socket as Socket
 
 # pylint: disable=wildcard-import,unused-wildcard-import
 from dvrip         import *
+from dvrip.info    import _json_to_version, _version_for_json, _versiontype
 from dvrip.message import _ChunkReader
 from dvrip.packet  import _mirrorproperty
 
@@ -105,8 +106,6 @@ def test_Session_jsonto():
 		Session.json_to('SPAM')
 	with raises(DVRIPDecodeError, match="not a session ID"):
 		Session.json_to('0xSPAM')
-	with raises(DVRIPDecodeError, match="not a session ID"):
-		Session.json_to('0x59AE')
 
 class PseudoSocket(RawIOBase):
 	def __init__(self, rfile, wfile):
@@ -409,3 +408,36 @@ def test_Client_login_invalid(session, cliconn, clitosrv, srvtocli):
 		except DVRIPRequestError as e:
 			assert e.code == Status.ERROR.code
 			raise
+
+@given(text())
+def test_version_jsonto(s):
+	assert _json_to_version('Unknown') is None
+	assert s == 'Unknown' or _json_to_version(s) == s
+
+@given(one_of(none(), text()))
+def test_version_forjson(s):
+	assert _version_for_json(None) == 'Unknown'
+	assert s is None or _version_for_json(s) == s
+	with raises(ValueError, match='argument must not be'):
+		_version_for_json('Unknown')
+
+def test_version():
+	assert _versiontype == (_json_to_version, _version_for_json)
+
+@given(sampled_from(list(Info.__members__.values())))
+def test_Info_repr(cat):
+	assert repr(cat) == 'Info.{}'.format(cat.name)
+
+@given(sampled_from(list(Info.__members__.values())))
+def test_Info_str(cat):
+	assert str(cat) == cat.value
+
+@given(sampled_from(list(Info.__members__.values())))
+def test_Info_forjson(cat):
+	assert cat.for_json() == cat.value
+
+@given(sampled_from(list(Info.__members__.values())))
+def test_info_jsonto(cat):
+	assert Info.json_to(cat.value) == cat
+	with raises(DVRIPDecodeError, match='not a known info category'):
+		Info.json_to('SPAM')

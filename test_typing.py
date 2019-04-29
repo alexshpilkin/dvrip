@@ -7,8 +7,9 @@ from string     import hexdigits
 from typing     import Callable, SupportsBytes, Type, TypeVar, no_type_check
 
 from dvrip.errors import DVRIPDecodeError
-from dvrip.typing import EnumValue, Member, Object, Value, _compose, for_json, \
-                         json_to, jsontype, member, optionalmember
+from dvrip.typing import EnumValue, Member, Object, Value, absentmember, \
+                         _compose, for_json, json_to, jsontype, member, \
+                         optionalmember
 
 
 def test_forjson():
@@ -148,6 +149,20 @@ def tohex(value: SupportsBytes) -> object:
 def hextext():
 	return (text(sampled_from('0123456789abcdef'))
 	            .filter(lambda s: len(s) % 2 == 0))
+
+class AbsentExample(Object):
+	mint: absentmember[int] = absentmember()
+
+@given(integers())
+def test_absentmember_forjson(i):
+	obj = AbsentExample()
+	assert obj.for_json() == {}
+	obj.mint = i
+	with raises(ValueError, match='value provided for absent member'):
+		obj.for_json()
+
+def test_absentmember_jsonto():
+	assert AbsentExample.json_to({}).mint == NotImplemented
 
 class Example(Object):
 	# a descriptor but not a field

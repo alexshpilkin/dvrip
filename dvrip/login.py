@@ -1,12 +1,12 @@
 from enum     import Enum, unique
 from hashlib  import md5 as MD5
 from string   import ascii_lowercase, ascii_uppercase, digits
-from .message import ControlMessage, ControlFilter, Status, Session
+from .message import ControlMessage, ControlRequest, Session, Status
 from .errors  import DVRIPDecodeError
 from .typing  import Object, for_json, json_to, member, optionalmember
 
-__all__ = ('xmmd5', 'Hash', 'ClientLogin', 'ClientLoginReply', 'ClientLogout',
-           'ClientLogoutReply')
+__all__ = ('xmmd5', 'Hash', 'ClientLoginReply', 'ClientLogin',
+           'ClientLogoutReply', 'ClientLogout')
 
 
 _XMMD5MAGIC = (digits + ascii_uppercase + ascii_lowercase)
@@ -29,7 +29,7 @@ class Hash(Enum):
 		return self
 
 	def __repr__(self):
-		return '{}.{}'.format(type(self).__qualname__, self._name_)  # pylint: disable=no-member
+		return '{}.{}'.format(type(self).__qualname__, self.name)
 
 	def __str__(self):
 		return self.id
@@ -47,19 +47,6 @@ class Hash(Enum):
 	XMMD5 = ('MD5', xmmd5)
 
 
-class ClientLogin(Object, ControlMessage):
-	type = 1000
-
-	username: member[str]  = member('UserName')
-	passhash: member[str]  = member('PassWord')
-	hash:     member[Hash] = member('EncryptType')
-	service:  member[str]  = member('LoginType')
-
-	@classmethod
-	def replies(cls, number):
-		return ControlFilter(ClientLoginReply, number)
-
-
 class ClientLoginReply(Object, ControlMessage):
 	type = 1001
 
@@ -72,21 +59,28 @@ class ClientLoginReply(Object, ControlMessage):
 	encrypt:  optionalmember[bool] = optionalmember('DataUseAES')
 
 
-class ClientLogout(Object, ControlMessage):
-	type = 1002
+class ClientLogin(Object, ControlRequest):
+	type  = 1000
+	reply = ClientLoginReply
 
-	# FIXME 'username' unused?
-	username: member[str]     = member('Name')
-	session:  member[Session] = member('SessionID')
-
-	@classmethod
-	def replies(cls, number):
-		return ControlFilter(ClientLogoutReply, number)
+	username: member[str]  = member('UserName')
+	passhash: member[str]  = member('PassWord')
+	hash:     member[Hash] = member('EncryptType')
+	service:  member[str]  = member('LoginType')
 
 
 class ClientLogoutReply(Object, ControlMessage):
 	type = 1003
 
 	status:   member[Status]  = member('Ret')
+	username: member[str]     = member('Name')
+	session:  member[Session] = member('SessionID')
+
+
+class ClientLogout(Object, ControlRequest):
+	type  = 1002
+	reply = ClientLogoutReply
+
+	# FIXME 'username' unused?
 	username: member[str]     = member('Name')
 	session:  member[Session] = member('SessionID')

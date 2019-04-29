@@ -1,7 +1,8 @@
 from .errors  import *
-from .packet  import *
-from .message import *
+from .info    import *
 from .login   import *
+from .message import *
+from .packet  import *
 
 
 class Connection(object):
@@ -34,19 +35,21 @@ class Connection(object):
 			results.extend(chunk)
 		return results
 
-	def request(self, message):
+	def request(self, request):
 		self.number += 1
-		self.send(self.number, message)
-		(_, reply), = self.recv(message.replies(self.number))  # pylint: disable=unbalanced-tuple-unpacking
+		self.send(self.number, request)
+		(_, reply), = self.recv(request.replies(self.number))  # pylint: disable=unbalanced-tuple-unpacking
+		DVRIPRequestError.signal(request, reply)
 		return reply
 
 
 class Client(Connection):
-	__slots__ = ('username',)
+	__slots__ = ('username', '_logininfo')
 
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		self.username = None
+		self.username   = None
+		self._logininfo = None
 
 	def login(self, username, password, hash=Hash.XMMD5,  # pylint: disable=redefined-builtin
 	          service='DVRIP-Web'):
@@ -59,24 +62,29 @@ class Client(Connection):
 		                      service=service)
 		reply = self.request(request)
 		DVRIPRequestError.signal(request, reply)
-		self.session  = reply.session
-		self.username = username
-
-		return reply  # FIXME device info
+		self.session    = reply.session
+		self.username   = username
+		self._logininfo = reply
 
 	def logout(self):
 		assert self.session is not None
 		request = ClientLogout(username=self.username,
 		                       session=self.session)
-		reply = self.request(request)
-		DVRIPRequestError.signal(request, reply)
+		self.request(request)
 		self.session = None
-
-		return reply  # FIXME debug
 
 	def connect(self, address, *args, **named):
 		self.socket.connect(address)
 		return self.login(*args, **named)
+
+	def systeminfo(self):
+		reply = self.request(GetInfo(category=Info.SYSTEM,
+		                             session=self.session))
+		if (reply.category != Info.SYSTEM or
+		    reply.system is NotImplemented):
+			raise DVRIPDecodeError('invalid system info reply')
+		reply.system.chassis = self._logininfo.chassis
+		return reply.system
 
 class Server(Connection):
 	pass
