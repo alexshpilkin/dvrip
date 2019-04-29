@@ -144,19 +144,9 @@ def noconn(conn):
 	conn.session = Session(0x57)
 	return conn
 
-def test_ClientLogin_repr():
-	assert (repr(ClientLogin('admin', passhash='def', service='abc')) ==
-	        "ClientLogin(username='admin', passhash='def', "
-	                    "hash=Hash.XMMD5, service='abc')")
-
-def test_ClientLogin_eq():
-	assert ClientLogin('admin', '') == ClientLogin('admin', '')
-	assert ClientLogin('admin', '') != ClientLogin('spam', '')
-	assert ClientLogin('admin', '') != ClientLogin('admin', 'spam')
-	assert ClientLogin('admin', '') != Ellipsis
- 
 def test_ClientLogin_topackets(noconn):
-	p, = tuple(ClientLogin('admin', 'tlJwpbo6').topackets(noconn))
+	p, = tuple(ClientLogin(username='admin', passhash='tlJwpbo6')
+	                      .topackets(noconn))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xE8\x03\x5F\x00\x00\x00'
 	                      b'{"UserName": "admin", '
@@ -166,7 +156,8 @@ def test_ClientLogin_topackets(noconn):
 	                      b'\x0A\x00')
 
 def test_ClientLogin_topackets_chunked(noconn):
-	p, q = tuple(ClientLogin('a'*16384, 'tlJwpbo6').topackets(noconn))
+	p, q = tuple(ClientLogin(username='a'*16384, passhash='tlJwpbo6')
+	                        .topackets(noconn))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x02\x00\xE8\x03\x00\x40\x00\x00'
 	                      b'{"UserName": "' + b'a' * (16384 - 14))
@@ -187,16 +178,6 @@ def test_ClientLogin_frompackets_invalid():
 	            match='not a known hash function'):
 		ClientLogin.frompackets([packet])
 
-@given(text(), text())
-def test_ClientLogin_forjson_jsonto(username, password):
-	m = ClientLogin(username, password)
-	assert ClientLogin.json_to(m.for_json()) == m
-
-@given(text(), text())
-def test_ClientLogin_forjson_jsonto_forjson(username, password):
-	m = ClientLogin(username, password)
-	assert ClientLogin.json_to(m.for_json()).for_json() == m.for_json()
-
 def test_ClientLoginReply_frompackets():
 	chunks = [b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00',
 	          b'\x00\x00\x00\x00\xe9\x03\x96\x00\x00\x00'
@@ -212,23 +193,6 @@ def test_ClientLoginReply_frompackets():
 def test_ClientLoginReply_fromchunks_empty():
 	with raises(DVRIPDecodeError, match='no data in DVRIP packet'):
 		ClientLoginReply.fromchunks([])
-
-@given(sampled_from(Status), integers(min_value=0, max_value=0xFFFFFFFF),
-       integers(), integers(), integers(), text(), booleans())
-def test_ClientLoginReply_forjson_jsonto(status, id, timeout, channels, views,
-                                         chassis, encrypt):
-	m = ClientLoginReply(status, Session(id), timeout, channels, views,
-	                     chassis, encrypt)
-	assert ClientLoginReply.json_to(m.for_json()) == m
-
-@given(sampled_from(Status), integers(min_value=0, max_value=0xFFFFFFFF),
-       integers(), integers(), integers(), text(), booleans())
-def test_ClientLoginReply_forjson_jsonto_fromjson(status, id, timeout,
-                                                  channels, views, chassis,
-                                                  encrypt):
-	m = ClientLoginReply(status, Session(id), timeout, channels, views,
-	                     chassis, encrypt)
-	assert ClientLoginReply.json_to(m.for_json()).for_json() == m.for_json()
 
 def test_ControlFilter_accept():
 	chunks = [b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00',
@@ -324,16 +288,12 @@ def test_ControlFilter_accept_invalid_overlap():
 		replies.accept(q)
 
 def test_ClientLogout_topackets(noconn):
-	p, = ClientLogout('admin', noconn.session).topackets(noconn)
+	p, = (ClientLogout(username='admin', session=noconn.session)
+	                  .topackets(noconn))
 	assert p.encode() == (b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xEA\x03\x2E\x00\x00\x00'
 	                      b'{"Name": "admin", "SessionID": "0x00000057"}'
 	                      b'\x0A\x00')
-
-@given(text(), integers(min_value=0, max_value=0xFFFFFFFF))
-def test_ClientLogout_forjson_jsonto(username, id):
-	m = ClientLogout(username, Session(id))
-	assert ClientLogout.json_to(m.for_json()) == m
 
 def test_ClientLogoutReply_accept():
 	data = (b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
@@ -345,21 +305,19 @@ def test_ClientLogoutReply_accept():
 	assert (m.username == "" and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
 
-@given(sampled_from(Status), text(),
-       integers(min_value=0, max_value=0xFFFFFFFF))
-def test_ClientLogoutReply_forjson_jsonto(status, username, id):
-	m = ClientLogoutReply(status, username, Session(id))
-	assert ClientLogoutReply.json_to(m.for_json()) == m
-
 def test_Connection_logout(noconn, rfile, wfile, capsys):
 	session = noconn.session
 
 	noconn.number = 2
-	p, = (ClientLogoutReply(Status.OK, 'admin', session)
+	p, = (ClientLogoutReply(status=Status.OK,
+	                        username='admin',
+	                        session=session)
 	     .topackets(noconn))
 	p.dump(rfile)
 	noconn.number = 0
-	p, = (ClientLogoutReply(Status.OK, 'admin', session)
+	p, = (ClientLogoutReply(status=Status.OK,
+	                        username='admin',
+	                        session=session)
 	     .topackets(noconn))
 	p.dump(rfile)
 	noconn.number = 0
@@ -367,28 +325,38 @@ def test_Connection_logout(noconn, rfile, wfile, capsys):
 
 	rfile.seek(0); noconn.logout(); wfile.seek(0)
 	m = ClientLogout.frompackets([Packet.load(wfile)])
-	assert m == ClientLogout('admin', session)
+	assert m == ClientLogout(username='admin', session=session)
 	out1, out2 = capsys.readouterr().out.split('\n')
 	assert out1.startswith('unrecognized packet: ') and out2 == ''
 
 def test_Connection_login(conn, rfile, wfile):
 	session, conn.session = conn.session, Session(0x57)
-	p, = (ClientLoginReply(Status.OK, Session(0x57),
-	                       21, 4, 0, 'HVR', False)
+	p, = (ClientLoginReply(status=Status.OK,
+	                       session=Session(0x57),
+	                       timeout=21,
+	                       channels=4,
+	                       views=0,
+	                       chassis='HVR',
+	                       encrypt=False)
 	     .topackets(conn))
 	p.dump(rfile); conn.number -= 1
 	conn.session = session
 
 	rfile.seek(0)
 	conn.connect(('example.com', conn.PORT),
-	             'admin', passhash='abc', service='def')
+	             username='admin', passhash='abc', service='def')
 	wfile.seek(0)
 	m = ClientLogin.frompackets([Packet.load(wfile)])
 
 def test_Connection_login_invalid(conn, rfile, wfile):
 	session, conn.session = conn.session, Session(0x57)
-	p, = (ClientLoginReply(Status.ERROR, Session(0x57),
-	                       21, 4, 0, 'HVR', False)
+	p, = (ClientLoginReply(status=Status.ERROR,
+	                       session=Session(0x57),
+	                       timeout=21,
+	                       channels=4,
+	                       views=0,
+	                       chassis='HVR',
+	                       encrypt=False)
 	     .topackets(conn))
 	p.dump(rfile); conn.number -= 1
 	conn.session = session
@@ -397,7 +365,9 @@ def test_Connection_login_invalid(conn, rfile, wfile):
 	with raises(DVRIPRequestError, match='Unknown error'):
 		try:
 			conn.connect(('example.com', conn.PORT),
-			             'admin', passhash='abc', service='def')
+			             username='admin',
+			             passhash='abc',
+			             service='def')
 		except DVRIPRequestError as e:
 			assert e.code == Status.ERROR.code
 			raise

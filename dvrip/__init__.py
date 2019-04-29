@@ -50,11 +50,11 @@ class Connection(object):
 			results.extend(chunk)
 		return results
 
-	def login(self, username, *args, **named):
+	def login(self, *, username, **named):
 		assert self.session is None
 
 		self.session = Session(0)
-		request = ClientLogin(username, *args, **named)
+		request = ClientLogin(username=username, **named)
 		reply, = self.request(request)  # pylint: disable=unbalanced-tuple-unpacking
 		DVRIPRequestError.signal(request, reply)
 		self.session  = reply.session
@@ -64,7 +64,8 @@ class Connection(object):
 
 	def logout(self):
 		assert self.session is not None
-		request = ClientLogout(self.username, self.session)
+		request = ClientLogout(username=self.username,
+		                       session=self.session)
 		reply, = self.request(request)  # pylint: disable=unbalanced-tuple-unpacking
 		DVRIPRequestError.signal(request, reply)
 		self.session = None

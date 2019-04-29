@@ -160,7 +160,7 @@ class BigExample(Example):
 	def room(self):
 		return 101
 	# note the single quote
-	nini: member[int]           = member("Int'")
+	nint: member[int]           = member("Int'")
 	nhex: member[SupportsBytes] = member("Hex'", (fromhex, tohex),
 	                                     jsontype(str), default=b'\x42')
 
@@ -186,16 +186,16 @@ def test_Member_nojsonto():
 	with raises(TypeError):
 		class FailingExample(Example):
 			bad: member[NotImplementedError] = member('Bad')
-		FailingExample(...).for_json()
+		FailingExample(bad=NotImplementedError()).for_json()
 
 @given(integers(), binary())
 def test_Object_get(i, b):
-	mobj = Example(i, b)
+	mobj = Example(mint=i, mhex=b)
 	assert mobj.mint == i and mobj.mhex == b
 
 @given(integers(), binary(), integers(), binary())
 def test_Object_set(i, b, j, c):
-	mobj = Example(i, b)
+	mobj = Example(mint=i, mhex=b)
 	assert mobj.mint == i and mobj.mhex == b
 	mobj.mint = j
 	assert mobj.mint == j and mobj.mhex == b
@@ -205,33 +205,32 @@ def test_Object_set(i, b, j, c):
 @given(integers(), binary(), integers())
 def test_Object_defaults(i, b, j):
 	assert Example().mint == 2 and Example().mhex == b'\x57'
-	assert Example(i).mhex == b'\x57'
+	assert Example(mint=i).mhex == b'\x57'
 	assert Example(mhex=b).mint == 2
-	assert BigExample(i, b, j).nhex == b'\x42'
-	with raises(TypeError):
-		BigExample(mint=i, nini=j)
+	assert BigExample(mint=i, nint=j).mhex == b'\x57'
+	assert BigExample(mint=i, nint=j).nhex == b'\x42'
 
 @given(integers(), binary())
 def test_Object_repr(i, b):
-	assert (repr(Example(i, b)) ==
+	assert (repr(Example(mint=i, mhex=b)) ==
 	        'Example(mint={!r}, mhex={!r})'.format(i, b))
 
 @given(integers(), binary(), integers(), binary())
 def test_Object_eq(i, b, j, c):
-	assert ((Example(i, b) == Example(j, c)) ==
+	assert ((Example(mint=i, mhex=b) == Example(mint=j, mhex=c)) ==
 	         (i == j and b == c))
-	assert Example(i, b) != Ellipsis
+	assert Example(mint=i, mhex=b) != Ellipsis
 
 @given(integers(), binary(), integers())
 def test_Object_forjson(i, b, j):
-	assert Example(i, b).for_json() == {'Int': i, 'Hex': b.hex()}
+	assert Example(mint=i, mhex=b).for_json() == {'Int': i, 'Hex': b.hex()}
 	with raises(TypeError, match='already set'):
-		ConflictExample(i, j).for_json()
+		ConflictExample(mint=i, nint=j).for_json()
 
 @given(integers(), hextext())
 def test_Object_jsonto(i, h):
 	assert (Example.json_to({'Int': i, 'Hex': h}) ==
-	        Example(i, bytes.fromhex(h)))
+	        Example(mint=i, mhex=bytes.fromhex(h)))
 	with raises(DVRIPDecodeError, match='not an object'):
 		Example.json_to([])
 	with raises(DVRIPDecodeError, match='no member'):
@@ -245,9 +244,9 @@ def test_Object_jsonto(i, h):
 
 @given(integers(), integers(), binary())
 def test_Object_forjson_jsonto(i, j, b):
-	mobj = Example(j, b)
+	mobj = Example(mint=j, mhex=b)
 	assert Example.json_to(mobj.for_json()) == mobj
-	nst = NestedExample(i, mobj)
+	nst = NestedExample(mint=i, mobj=mobj)
 	assert NestedExample.json_to(nst.for_json()) == nst
 
 @given(integers(), integers(), hextext())

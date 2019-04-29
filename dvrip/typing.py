@@ -301,15 +301,13 @@ class ObjectMeta(ABCMeta):
 		tovals   = {'_begin_':  self._begin_,
 		            '_popper_': self._popper_,
 		            '_end_':    self._end_}
-		defaults = True
 
 		for mname in reversed(self._members_):
 			member = getattr(self, mname)  # pylint: disable=redefined-outer-name
 
-			if not hasattr(member, 'default'):
-				defaults = False
 			initspec.append('{0}={0}'.format(mname)
-			                if defaults else mname)
+			                if hasattr(member, 'default')
+			                else mname)
 			initbody.append('\t_self_.{0} = {0}'.format(mname))
 			initvals[mname] = getattr(member, 'default', None)
 
@@ -322,6 +320,8 @@ class ObjectMeta(ABCMeta):
 			              .format(mname=mname, mvalue=mvalue))
 			tovals[mvalue] = member
 
+		if initspec:
+			initspec.append('*')
 		initspec.append('_self_')
 		exec('def __init__({}):\n'
 		     '{}\n'
