@@ -19,14 +19,13 @@ class Sequence(object):  # pylint: disable=too-few-public-methods
 class Connection(object):
 	PORT = 34567
 
-	__slots__ = ('socket', 'file', 'session', 'number', 'username')
+	__slots__ = ('socket', 'file', 'session', 'number')
 
 	def __init__(self, socket, session=None, number=0):
 		self.socket   = socket
 		self.file     = socket.makefile('rwb')
 		self.session  = session
 		self.number   = number
-		self.username = None
 
 	def sequence(self):
 		s = Sequence(self.session, self.number)
@@ -49,6 +48,14 @@ class Connection(object):
 				continue
 			results.extend(chunk)
 		return results
+
+
+class Client(Connection):
+	__slots__ = ('username',)
+
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.username = None
 
 	def login(self, username, password, hash=Hash.XMMD5,  # pylint: disable=redefined-builtin
 	          service='DVRIP-Web'):
@@ -79,3 +86,6 @@ class Connection(object):
 	def connect(self, address, *args, **named):
 		self.socket.connect(address)
 		return self.login(*args, **named)
+
+class Server(Connection):
+	pass

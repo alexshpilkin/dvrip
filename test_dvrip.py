@@ -102,15 +102,7 @@ def test_Session_json_to():
 	with raises(DVRIPDecodeError, match="not a session ID"):
 		Session.json_to('0x59AE')
 
-@fixture
-def rfile():
-	return BytesIO()
-
-@fixture
-def wfile():
-	return BytesIO()
-
-class SFile(RawIOBase):
+class PseudoSocket(RawIOBase):
 	def __init__(self, rfile, wfile):
 		self.rfile = rfile
 		self.wfile = wfile
@@ -128,28 +120,57 @@ class SFile(RawIOBase):
 		return self.wfile.write(*args, **named)
 
 @fixture
-def sfile(rfile, wfile):
-	return SFile(rfile, wfile)
+def clitosrv():
+	return BytesIO()
 
 @fixture
-def sock(sfile):
-	return Mock(Socket, makefile=Mock(return_value=sfile))
+def srvtocli():
+	return BytesIO()
 
 @fixture
-def conn(sock):
-	return Connection(sock)
+def clifile(clitosrv, srvtocli):
+	return PseudoSocket(srvtocli, clitosrv)
 
 @fixture
-def noconn(conn):
-	conn.session = Session(0x57)
-	return conn
+def srvfile(clitosrv, srvtocli):
+	return PseudoSocket(clitosrv, srvtocli)
 
-def test_ClientLogin_topackets(noconn):
+@fixture
+def clisock(clifile):
+	return Mock(Socket, makefile=Mock(return_value=clifile))
+
+@fixture
+def srvsock(srvfile):
+	return Mock(Socket, makefile=Mock(return_value=srvfile))
+
+@fixture
+def cliconn(clisock):
+	return Client(clisock)
+
+@fixture
+def srvconn(srvsock):
+	return Server(srvsock)
+
+@fixture
+def session():
+	return Session(0x57)
+
+@fixture
+def clinoconn(cliconn, session):
+	cliconn.session = session
+	return cliconn
+
+@fixture
+def srvnoconn(srvconn, session):
+	srvconn.session = session
+	return srvconn
+
+def test_ClientLogin_topackets(clinoconn):
 	p, = tuple(ClientLogin(username='admin',
 	                       passhash='tlJwpbo6',
 	                       hash=Hash.XMMD5,
 	                       service='DVRIP-Web')
-	                      .topackets(noconn))
+	                      .topackets(clinoconn))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xE8\x03\x5F\x00\x00\x00'
 	                      b'{"UserName": "admin", '
@@ -158,12 +179,12 @@ def test_ClientLogin_topackets(noconn):
 	                      b'"LoginType": "DVRIP-Web"}'
 	                      b'\x0A\x00')
 
-def test_ClientLogin_topackets_chunked(noconn):
+def test_ClientLogin_topackets_chunked(clinoconn):
 	p, q = tuple(ClientLogin(username='a'*16384,
 	                         passhash='tlJwpbo6',
 	                         hash=Hash.XMMD5,
 	                         service='DVRIP-Web')
-	                        .topackets(noconn))
+	                        .topackets(clinoconn))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x02\x00\xE8\x03\x00\x40\x00\x00'
 	                      b'{"UserName": "' + b'a' * (16384 - 14))
@@ -293,9 +314,9 @@ def test_ControlFilter_accept_invalid_overlap():
 	with raises(DVRIPDecodeError, match='overlapping fragments'):
 		replies.accept(q)
 
-def test_ClientLogout_topackets(noconn):
-	p, = (ClientLogout(username='admin', session=noconn.session)
-	                  .topackets(noconn))
+def test_ClientLogout_topackets(clinoconn):
+	p, = (ClientLogout(username='admin', session=clinoconn.session)
+	                  .topackets(clinoconn))
 	assert p.encode() == (b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xEA\x03\x2E\x00\x00\x00'
 	                      b'{"Name": "admin", "SessionID": "0x00000057"}'
@@ -311,65 +332,59 @@ def test_ClientLogoutReply_accept():
 	assert (m.username == "" and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
 
-def test_Connection_logout(noconn, rfile, wfile, capsys):
-	session = noconn.session
-
-	noconn.number = 2
+def test_Client_logout(session, clinoconn, srvnoconn, clitosrv, srvtocli):
+	srvconn.number = 2
 	p, = (ClientLogoutReply(status=Status.OK,
 	                        username='admin',
 	                        session=session)
-	     .topackets(noconn))
-	p.dump(rfile)
-	noconn.number = 0
+	                       .topackets(srvnoconn))
+	p.dump(srvtocli)
+	srvconn.number = 0
 	p, = (ClientLogoutReply(status=Status.OK,
 	                        username='admin',
 	                        session=session)
-	     .topackets(noconn))
-	p.dump(rfile)
-	noconn.number = 0
-	noconn.username = 'admin'
+	                       .topackets(srvnoconn))
+	p.dump(srvtocli)
+	srvtocli.seek(0)
 
-	rfile.seek(0); noconn.logout(); wfile.seek(0)
-	m = ClientLogout.frompackets([Packet.load(wfile)])
+	clinoconn.username = 'admin'
+	clinoconn.logout()
+	clitosrv.seek(0); m = ClientLogout.frompackets([Packet.load(clitosrv)])
 	assert m == ClientLogout(username='admin', session=session)
 	out1, out2 = capsys.readouterr().out.split('\n')
 	assert out1.startswith('unrecognized packet: ') and out2 == ''
 
-def test_Connection_login(conn, rfile, wfile):
-	session, conn.session = conn.session, Session(0x57)
+def test_Client_login(session, cliconn, srvnoconn, clitosrv, srvtocli):
 	p, = (ClientLoginReply(status=Status.OK,
-	                       session=Session(0x57),
+	                       session=session,
 	                       timeout=21,
 	                       channels=4,
 	                       views=0,
 	                       chassis='HVR',
 	                       encrypt=False)
-	     .topackets(conn))
-	p.dump(rfile); conn.number -= 1
-	conn.session = session
+	                      .topackets(srvnoconn))
+	p.dump(srvtocli); srvtocli.seek(0)
 
-	rfile.seek(0)
-	conn.connect(('example.com', conn.PORT), 'admin', '')
-	wfile.seek(0)
-	m = ClientLogin.frompackets([Packet.load(wfile)])
+	cliconn.connect(('example.com', cliconn.PORT), 'admin', '')
+	clitosrv.seek(0); m = ClientLogin.frompackets([Packet.load(clitosrv)])
+	assert (m.username == 'admin' and m.passhash == xmmd5('') and
+	        m.hash == Hash.XMMD5 and m.service == 'DVRIP-Web')
 
-def test_Connection_login_invalid(conn, rfile, wfile):
-	session, conn.session = conn.session, Session(0x57)
+def test_Client_login_invalid(session, cliconn, srvnoconn, clitosrv, srvtocli):
 	p, = (ClientLoginReply(status=Status.ERROR,
-	                       session=Session(0x57),
+	                       session=session,
 	                       timeout=21,
 	                       channels=4,
 	                       views=0,
 	                       chassis='HVR',
 	                       encrypt=False)
-	     .topackets(conn))
-	p.dump(rfile); conn.number -= 1
-	conn.session = session
+	                      .topackets(srvnoconn))
+	p.dump(srvtocli); srvtocli.seek(0)
 
-	rfile.seek(0)
 	with raises(DVRIPRequestError, match='Unknown error'):
 		try:
-			conn.connect(('example.com', conn.PORT), 'admin', '')
+			cliconn.connect(('example.com', cliconn.PORT),
+			                'admin', '')
 		except DVRIPRequestError as e:
 			assert e.code == Status.ERROR.code
 			raise
