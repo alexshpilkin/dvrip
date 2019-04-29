@@ -9,6 +9,7 @@ from typing_extensions import Protocol, runtime
 from typing_inspect import is_generic_type, get_origin, get_args  # type: ignore
 from .errors     import DVRIPDecodeError
 
+T = TypeVar('T')
 V = TypeVar('V', bound='Union[bool, int, str, Value]')
 O = TypeVar('O', bound='Object')
 
@@ -93,6 +94,10 @@ def _json_to_str(datum: object) -> str:
 	return str(datum)
 
 
+def jsontype(type):  # pylint: disable=redefined-builtin
+	return (json_to(type), for_json)
+
+
 class EnumValueMeta(EnumMeta, ABCMeta):
 	pass
 
@@ -103,7 +108,7 @@ class EnumValue(Value, Enum, metaclass=EnumValueMeta):  # pylint: disable=abstra
 
 if TYPE_CHECKING:  # pragma: no cover
 	@runtime
-	class Member(Generic[V], Protocol):
+	class Member(Generic[T], Protocol):
 		# pylint: disable=no-self-use,unused-argument
 		name: str
 
@@ -112,17 +117,19 @@ if TYPE_CHECKING:  # pragma: no cover
 
 		def push(self,
 		         push: Callable[[str, object], None],
-		         value: V
+		         value: T
 		        ) -> None:
 			...
 
-		def pop(self, pop: Callable[[str], object]) -> V:
+		def pop(self, pop: Callable[[str], object]) -> T:
 			...
 
 else:
-	class Member(Generic[V], metaclass=ABCMeta):
+	class Member(Generic[T], metaclass=ABCMeta):
 		__slots__ = ('name',)
-		name: str
+
+		def __init__(self):
+			self.name: str  # pragma: no cover
 
 		def __set_name__(self, _type: 'ObjectMeta', name: str) -> None:
 			self.name = name
@@ -130,12 +137,12 @@ else:
 		@abstractmethod
 		def push(self,
 			 push: Callable[[str, object], None],
-			 value: V
+			 value: T
 			) -> None:
 			pass
 
 		@abstractmethod
-		def pop(self, pop: Callable[[str], object]) -> V:
+		def pop(self, pop: Callable[[str], object]) -> T:
 			raise NotImplementedError  # pragma: no cover
 
 		@classmethod
@@ -154,42 +161,63 @@ else:
 			return True
 
 
+def _compose(*args: Callable[[Any], Any]) -> Callable[[Any], Any]:
+	# pylint: disable=exec-used
+	res = 'x'
+	env = {}
+	for i, fun in enumerate(reversed(args)):
+		res = 'f{}({})'.format(i, res)
+		env['f{}'.format(i)] = fun
+	exec('def composition(x):\n'
+	     '\treturn {}'.format(res),
+	     env)
+	return env['composition']
+
 _SENTINEL = object()
 
-class member(Member[V]):
-	__slots__ = ('key', 'json_to', 'for_json', 'default')
+class member(Member[T]):
+	__slots__ = ('key', 'pipe', 'default', 'json_to', 'for_json')
 
 	def __init__(self,
-	             key:      str,
-	             json_to:  Optional[Callable[[object], V]] = None,  # pylint: disable=redefined-outer-name
-	             for_json: Callable[[V], object] = for_json,        # pylint: disable=redefined-outer-name
+	             key:    str,
+	             conv:   Optional[Tuple[Callable[[Any], T],
+	                                    Callable[[T], Any]]]
+	                     = None,
+	             *args:  Tuple[Callable[[Any], Any],
+	                           Callable[[Any], Any]],
 	             default = _SENTINEL
 	            ) -> None:
-		self.key      = key
-		self.json_to  = json_to
-		self.for_json = for_json
+		self.key   = key
+		if conv is not None:
+			self.pipe = (conv, *args)
+		else:
+			self.pipe = ()
 		if default is not _SENTINEL:
 			self.default: str = default
+		self.json_to:  Callable[[object], T]
+		self.for_json: Callable[[T], object]
 
 	def __set_name__(self, cls: 'ObjectMeta', name: str) -> None:
 		super().__set_name__(cls, name)
-		if self.json_to is None:
+		if not self.pipe:
 			ann = get_type_hints(cls).get(name, None)
-			if (is_generic_type(ann) and
-			    get_origin(ann) == type(self)):
-				arg, = get_args(ann)
-				self.json_to = json_to(arg)
-		if self.json_to is None:
-			raise TypeError('no type or conversion '
-			                'specified for member {!r}'
-			                .format(name))
+			if (not is_generic_type(ann) and
+			    get_origin(ann) is not type(self) and
+			    len(get_args(ann)) != 1):
+				raise TypeError('no type or conversions '
+				                'specified for member {!r}'
+				                .format(name))
+			self.pipe = (jsontype(get_args(ann)[0]),)
 
-	def __get__(self, obj: 'Object', _type: type) -> Union['member[V]', V]:
+		self.json_to  = _compose(*(p[0] for p in self.pipe))
+		self.for_json = _compose(*(p[1] for p in reversed(self.pipe)))
+
+	def __get__(self, obj: 'Object', _type: type) -> Union['member[T]', T]:
 		if obj is None:
 			return self
 		return getattr(obj._values_, self.name)  # pylint: disable=protected-access
 
-	def __set__(self, obj: 'Object', value: V) -> None:
+	def __set__(self, obj: 'Object', value: T) -> None:
 		return setattr(obj._values_, self.name, value)  # pylint: disable=protected-access
 
 	def push(self, push, value):

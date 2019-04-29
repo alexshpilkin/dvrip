@@ -4,16 +4,16 @@ from hypothesis.strategies \
                 import binary, booleans, integers, sampled_from, text
 from pytest     import raises  # type: ignore
 from string     import hexdigits
-from typing     import Callable, Type, TypeVar, no_type_check
+from typing     import Callable, SupportsBytes, Type, TypeVar, no_type_check
 
 from dvrip.errors import DVRIPDecodeError
-from dvrip.typing import EnumValue, Member, Object, Value, for_json, json_to, \
-                         member, optionalmember
+from dvrip.typing import EnumValue, Member, Object, Value, _compose, for_json, \
+                         json_to, jsontype, member, optionalmember
 
 
 def test_forjson():
 	with raises(TypeError, match='not a JSON value'):
-		for_json(Ellipsis)
+		for_json(NotImplementedError())
 
 D = TypeVar('D', bound='DuckValue')
 
@@ -106,6 +106,9 @@ def test_str_forjson_jsonto(s):
 def test_str_jsonto_forjson(s):
 	assert for_json(json_to(str)(s)) == s
 
+def test_jsontype():
+	assert jsontype(int) == (json_to(int), for_json)
+
 class SubclassMember(Member):
 	pass
 
@@ -130,21 +133,26 @@ def test_Member_subclasshook():
 	assert issubclass(DuckMember, Member)
 	assert not issubclass(DuckNoMember, Member)
 
-def fromhex(value):
-	if not isinstance(value, str) or not all(c in hexdigits for c in value):
+@given(integers())
+def test_compose(i):
+	assert _compose(lambda x: x+1, lambda x: 2*x)(i) == 2*i + 1
+
+def fromhex(value: object) -> bytes:
+	if not all(c in hexdigits for c in value):
 		raise DVRIPDecodeError('not a hex string')
 	return bytes.fromhex(value)
 
-def tohex(value):
-	return memoryview(value).hex()
+def tohex(value: SupportsBytes) -> object:
+	return bytes(value).hex()
 
 def hextext():
 	return (text(sampled_from('0123456789abcdef'))
 	            .filter(lambda s: len(s) % 2 == 0))
 
 class Example(Object):
-	mint: member[int] = member('Int', json_to(int), default=2)
-	mhex: member[str] = member('Hex', fromhex, tohex, default=b'\x57')
+	mint: member[int]   = member('Int', default=2)
+	mhex: member[bytes] = member('Hex', (fromhex, tohex), jsontype(str),
+	                             default=b'\x57')
 
 class BigExample(Example):
 	# a descriptor but not a field
@@ -152,11 +160,12 @@ class BigExample(Example):
 	def room(self):
 		return 101
 	# note the single quote
-	nini: member[int] = member("Int'")
-	nhex: member[str] = member("Hex'", fromhex, tohex, default=b'\x42')
+	nini: member[int]           = member("Int'")
+	nhex: member[SupportsBytes] = member("Hex'", (fromhex, tohex),
+	                                     jsontype(str), default=b'\x42')
 
 class NestedExample(Object):
-	mint = member('Int', json_to(int))
+	mint = member('Int', jsontype(int))
 	mobj: member[Example] = member('Obj')
 
 class ConflictExample(Object):
@@ -168,15 +177,16 @@ def test_Object():
 
 @no_type_check
 def test_Member_nojsonto():
-	with raises(TypeError, match='no type or conversion specified'):
+	with raises(TypeError, match='no type or conversions specified'):
 		class FailingExample(Example):
 			bad = member('Bad')
-	with raises(TypeError, match='no type or conversion specified'):
+	with raises(TypeError, match='no type or conversions specified'):
 		class FailingExample(Example):
 			bad: 3 = member('Bad')
-	with raises(TypeError, match='no type or conversion specified'):
+	with raises(TypeError):
 		class FailingExample(Example):
-			bad: member[type(Ellipsis)] = member('Bad')
+			bad: member[NotImplementedError] = member('Bad')
+		FailingExample(...).for_json()
 
 @given(integers(), binary())
 def test_Object_get(i, b):

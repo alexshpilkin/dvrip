@@ -181,7 +181,8 @@ class ControlMessage(Value):
 		if not chunks:
 			raise DVRIPDecodeError('no data in DVRIP packet')
 		chunks[-1] = chunks[-1].rstrip(b'\x00\\')
-		return cls.json_to(load(_ChunkReader(chunks), encoding='latin-1'))
+		return cls.json_to(load(_ChunkReader(chunks),
+		                        encoding='latin-1'))
 
 	@classmethod
 	def frompackets(cls, packets):
