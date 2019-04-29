@@ -161,19 +161,17 @@ class ControlMessage(Value):
 		json = dumps(self.for_json()).encode('ascii') + b'\x0A\x00'
 		return [json[i:i+size] for i in range(0, len(json), size)]
 
-	def topackets(self, conn):
-		chunks   = self.chunks()
-		length   = len(chunks)
-		sequence = conn.sequence()
+	def topackets(self, session, number):
+		chunks = self.chunks()
+		length = len(chunks)
 		if length == 1:
-			chunk = next(iter(chunks))  # pylint: disable=stop-iteration-return
-			yield sequence.packet(self.type, chunk, fragments=0,
-			                      fragment=0)
+			yield Packet(session.id, number, self.type, chunks[0],
+			             fragments=0, fragment=0)
 		else:
 			for i, chunk in enumerate(chunks):
-				yield sequence.packet(self.type, chunk,
-				                      fragments=length,
-				                      fragment=i)
+				yield Packet(session.id, number, self.type,
+				             chunk, fragments=length,
+				             fragment=i)
 
 	@classmethod
 	def fromchunks(cls, chunks):
@@ -201,9 +199,6 @@ class ControlFilter(object):
 		self.packets = None
 
 	def accept(self, packet):
-		# FIXME No idea if this interpretation of sequence
-		# numbers is correct.
-
 		if packet.type != self.cls.type:
 			return None
 		if packet.number != self.number:
@@ -223,7 +218,7 @@ class ControlFilter(object):
 		self.count += 1
 		if self.count < self.limit:
 			return ()
-		return (self.cls.frompackets(self.packets),)
+		return ((self.number, self.cls.frompackets(self.packets)),)
 
-	def open(self):
+	def __bool__(self):
 		return self.limit is None or self.count < self.limit

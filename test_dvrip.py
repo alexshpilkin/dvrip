@@ -185,12 +185,12 @@ def srvnoconn(srvconn, session):
 	srvconn.session = session
 	return srvconn
 
-def test_ClientLogin_topackets(clinoconn):
+def test_ClientLogin_topackets(session):
 	p, = tuple(ClientLogin(username='admin',
 	                       passhash='tlJwpbo6',
 	                       hash=Hash.XMMD5,
 	                       service='DVRIP-Web')
-	                      .topackets(clinoconn))
+	                      .topackets(session, 0))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xE8\x03\x5F\x00\x00\x00'
 	                      b'{"UserName": "admin", '
@@ -199,12 +199,12 @@ def test_ClientLogin_topackets(clinoconn):
 	                      b'"LoginType": "DVRIP-Web"}'
 	                      b'\x0A\x00')
 
-def test_ClientLogin_topackets_chunked(clinoconn):
+def test_ClientLogin_topackets_chunked(session):
 	p, q = tuple(ClientLogin(username='a'*16384,
 	                         passhash='tlJwpbo6',
 	                         hash=Hash.XMMD5,
 	                         service='DVRIP-Web')
-	                        .topackets(clinoconn))
+	                        .topackets(session, 0))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x02\x00\xE8\x03\x00\x40\x00\x00'
 	                      b'{"UserName": "' + b'a' * (16384 - 14))
@@ -249,7 +249,8 @@ def test_ControlFilter_accept():
 	          b'"ExtraChannel" : 0, "Ret" : 100, '
 	          b'"SessionID" : "0x00000057" }\x0A\x00']
 	replies = ClientLogin.replies(0)
-	m, = replies.accept(Packet.load(_ChunkReader(chunks)))
+	(n, m), = replies.accept(Packet.load(_ChunkReader(chunks)))
+	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
@@ -266,7 +267,8 @@ def test_ControlFilter_accept_chunked():
 
 	replies = ClientLogin.replies(0)
 	() = replies.accept(p)
-	m, = replies.accept(q)
+	(n, m), = replies.accept(q)
+	assert n == 0
 	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
@@ -334,9 +336,9 @@ def test_ControlFilter_accept_invalid_overlap():
 	with raises(DVRIPDecodeError, match='overlapping fragments'):
 		replies.accept(q)
 
-def test_ClientLogout_topackets(clinoconn):
-	p, = (ClientLogout(username='admin', session=clinoconn.session)
-	                  .topackets(clinoconn))
+def test_ClientLogout_topackets(session):
+	p, = (ClientLogout(username='admin', session=session)
+	                  .topackets(session, 0))
 	assert p.encode() == (b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xEA\x03\x2E\x00\x00\x00'
 	                      b'{"Name": "admin", "SessionID": "0x00000057"}'
@@ -348,23 +350,21 @@ def test_ClientLogoutReply_accept():
 	        b'{ "Name" : "", "Ret" : 100, '
 	        b'"SessionID" : "0x00000057" }\x0A\x00')
 	replies = ClientLogout.replies(0)
-	m, = replies.accept(Packet.decode(data))
+	(n, m), = replies.accept(Packet.decode(data))
+	assert n == 0
 	assert (m.username == "" and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
 
-def test_Client_logout(capsys, session, clinoconn, srvnoconn, clitosrv,
-                       srvtocli):
-	srvnoconn.number = 2
+def test_Client_logout(capsys, session, clinoconn, clitosrv, srvtocli):
 	p, = (ClientLogoutReply(status=Status.OK,
 	                        username='admin',
 	                        session=session)
-	                       .topackets(srvnoconn))
+	                       .topackets(session, 2))
 	p.dump(srvtocli)
-	srvnoconn.number = 0
 	p, = (ClientLogoutReply(status=Status.OK,
 	                        username='admin',
 	                        session=session)
-	                       .topackets(srvnoconn))
+	                       .topackets(session, 1))
 	p.dump(srvtocli)
 	srvtocli.seek(0)
 
@@ -375,7 +375,7 @@ def test_Client_logout(capsys, session, clinoconn, srvnoconn, clitosrv,
 	out1, out2 = capsys.readouterr().out.split('\n')
 	assert out1.startswith('unrecognized packet: ') and out2 == ''
 
-def test_Client_login(session, cliconn, srvnoconn, clitosrv, srvtocli):
+def test_Client_login(session, cliconn, clitosrv, srvtocli):
 	p, = (ClientLoginReply(status=Status.OK,
 	                       session=session,
 	                       timeout=21,
@@ -383,7 +383,7 @@ def test_Client_login(session, cliconn, srvnoconn, clitosrv, srvtocli):
 	                       views=0,
 	                       chassis='HVR',
 	                       encrypt=False)
-	                      .topackets(srvnoconn))
+	                      .topackets(session, 1))
 	p.dump(srvtocli); srvtocli.seek(0)
 
 	cliconn.connect(('example.com', cliconn.PORT), 'admin', '')
@@ -391,7 +391,7 @@ def test_Client_login(session, cliconn, srvnoconn, clitosrv, srvtocli):
 	assert (m.username == 'admin' and m.passhash == xmmd5('') and
 	        m.hash == Hash.XMMD5 and m.service == 'DVRIP-Web')
 
-def test_Client_login_invalid(session, cliconn, srvnoconn, clitosrv, srvtocli):
+def test_Client_login_invalid(session, cliconn, clitosrv, srvtocli):
 	p, = (ClientLoginReply(status=Status.ERROR,
 	                       session=session,
 	                       timeout=21,
@@ -399,7 +399,7 @@ def test_Client_login_invalid(session, cliconn, srvnoconn, clitosrv, srvtocli):
 	                       views=0,
 	                       chassis='HVR',
 	                       encrypt=False)
-	                      .topackets(srvnoconn))
+	                      .topackets(session, 1))
 	p.dump(srvtocli); srvtocli.seek(0)
 
 	with raises(DVRIPRequestError, match='Unknown error'):

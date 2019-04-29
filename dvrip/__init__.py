@@ -4,18 +4,6 @@ from .message import *
 from .login   import *
 
 
-class Sequence(object):  # pylint: disable=too-few-public-methods
-	__slots__ = ('session', 'number')
-
-	def __init__(self, session, number):
-		self.session = session
-		self.number  = number
-
-	def packet(self, *args, **named):
-		packet = Packet(self.session.id, self.number, *args, **named)
-		return packet
-
-
 class Connection(object):
 	PORT = 34567
 
@@ -27,27 +15,30 @@ class Connection(object):
 		self.session  = session
 		self.number   = number
 
-	def sequence(self):
-		s = Sequence(self.session, self.number)
-		self.number += 1
-		return s
-
-	def request(self, message):
+	def send(self, number, message):
 		file = self.file
-		for packet in message.topackets(self):
+		for packet in message.topackets(self.session, number):
 			packet.dump(file)
 		file.flush()
-		replies = message.replies(packet.number)  # pylint: disable=undefined-loop-variable
+
+	def recv(self, filter):  # pylint: disable=redefined-builtin
+		file = self.file
 		results = []
-		while replies.open():
+		while filter:
 			packet = Packet.load(file)
-			self.number = max(self.number, packet.number + 1)
-			chunk = replies.accept(packet)
+			self.number = max(self.number, packet.number)
+			chunk = filter.accept(packet)
 			if chunk is None:
 				print('unrecognized packet:', packet)  # FIXME
 				continue
 			results.extend(chunk)
 		return results
+
+	def request(self, message):
+		self.number += 1
+		self.send(self.number, message)
+		(_, reply), = self.recv(message.replies(self.number))  # pylint: disable=unbalanced-tuple-unpacking
+		return reply
 
 
 class Client(Connection):
@@ -66,7 +57,7 @@ class Client(Connection):
 		                      passhash=hash.func(password),
 		                      hash=hash,
 		                      service=service)
-		reply, = self.request(request)  # pylint: disable=unbalanced-tuple-unpacking
+		reply = self.request(request)
 		DVRIPRequestError.signal(request, reply)
 		self.session  = reply.session
 		self.username = username
@@ -77,7 +68,7 @@ class Client(Connection):
 		assert self.session is not None
 		request = ClientLogout(username=self.username,
 		                       session=self.session)
-		reply, = self.request(request)  # pylint: disable=unbalanced-tuple-unpacking
+		reply = self.request(request)
 		DVRIPRequestError.signal(request, reply)
 		self.session = None
 
