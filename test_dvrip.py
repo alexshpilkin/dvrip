@@ -81,19 +81,25 @@ def test_Status_json_to():
 	with raises(DVRIPDecodeError, match="not a known status code"):
 		Status.json_to('SPAM')
 
-def test_Session_repr():
-	assert repr(Session(0x42)) == 'Session(0x00000042)'
-	assert repr(Session(0x57)) == 'Session(0x00000057)'
+@given(integers(min_value=0, max_value=0xFFFFFFFF))
+def test_Session_repr(s):
+	assert repr(Session(s)) == 'Session(0x{:08X})'.format(s)
 
-def test_Session_hash():
-	assert hash(Session(0x42)) == hash(0x42)
-	assert hash(Session(0x57)) == hash(0x57)
+@given(integers(min_value=0, max_value=0xFFFFFFFF),
+       integers(min_value=0, max_value=0xFFFFFFFF))
+def test_Session_eq(s, t):
+	assert (Session(s) == Session(t)) == (s == t)
+	assert Session(s) != False
 
-def test_Session_for_json():
-	assert Session(0x42).for_json() == '0x00000042'
-	assert Session(0x57).for_json() == '0x00000057'
+@given(integers(min_value=0, max_value=0xFFFFFFFF))
+def test_Session_hash(s):
+	assert hash(Session(s)) == hash(s)
 
-def test_Session_json_to():
+@given(integers(min_value=0, max_value=0xFFFFFFFF))
+def test_Session_forjson(s):
+	assert Session(s).for_json() == '0x{:08X}'.format(s)
+
+def test_Session_jsonto():
 	assert Session.json_to('0x00000057') == Session(0x57)
 	with raises(DVRIPDecodeError, match="not a session ID"):
 		Session.json_to('SPAM')
@@ -118,6 +124,20 @@ class PseudoSocket(RawIOBase):
 
 	def write(self, *args, **named):
 		return self.wfile.write(*args, **named)
+
+def test_Hash_repr():
+	assert repr(Hash.XMMD5) == 'Hash.XMMD5'
+
+def test_Hash_str():
+	assert str(Hash.XMMD5) == 'MD5'
+
+def test_Hash_forjson():
+	assert Hash.XMMD5.for_json() == 'MD5'
+
+def test_Hash_jsonto():
+	assert Hash.json_to('MD5') == Hash.XMMD5
+	with raises(DVRIPDecodeError, match='not a known hash function'):
+		Hash.json_to('SPAM')
 
 @fixture
 def clitosrv():
@@ -332,14 +352,15 @@ def test_ClientLogoutReply_accept():
 	assert (m.username == "" and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
 
-def test_Client_logout(session, clinoconn, srvnoconn, clitosrv, srvtocli):
-	srvconn.number = 2
+def test_Client_logout(capsys, session, clinoconn, srvnoconn, clitosrv,
+                       srvtocli):
+	srvnoconn.number = 2
 	p, = (ClientLogoutReply(status=Status.OK,
 	                        username='admin',
 	                        session=session)
 	                       .topackets(srvnoconn))
 	p.dump(srvtocli)
-	srvconn.number = 0
+	srvnoconn.number = 0
 	p, = (ClientLogoutReply(status=Status.OK,
 	                        username='admin',
 	                        session=session)

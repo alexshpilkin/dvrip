@@ -154,7 +154,7 @@ class ControlMessage(Value):
 	@property
 	@abstractmethod
 	def type(self):
-		raise NotImplementedError
+		raise NotImplementedError  # pragma: no cover
 
 	def chunks(self):
 		size = Packet.MAXLEN  # FIXME Don't mention Packet explicitly?
