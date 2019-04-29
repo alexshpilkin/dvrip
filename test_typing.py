@@ -150,19 +150,13 @@ def hextext():
 	            .filter(lambda s: len(s) % 2 == 0))
 
 class Example(Object):
-	mint: member[int]   = member('Int', default=2)
-	mhex: member[bytes] = member('Hex', (fromhex, tohex), jsontype(str),
-	                             default=b'\x57')
-
-class BigExample(Example):
 	# a descriptor but not a field
 	@property
 	def room(self):
 		return 101
-	# note the single quote
-	nint: member[int]           = member("Int'")
-	nhex: member[SupportsBytes] = member("Hex'", (fromhex, tohex),
-	                                     jsontype(str), default=b'\x42')
+
+	mint: member[int]   = member('Int')
+	mhex: member[bytes] = member('Hex', (fromhex, tohex), jsontype(str))
 
 class NestedExample(Object):
 	mint = member('Int', jsontype(int))
@@ -201,14 +195,6 @@ def test_Object_set(i, b, j, c):
 	assert mobj.mint == j and mobj.mhex == b
 	mobj.mhex = c
 	assert mobj.mint == j and mobj.mhex == c
-
-@given(integers(), binary(), integers())
-def test_Object_defaults(i, b, j):
-	assert Example().mint == 2 and Example().mhex == b'\x57'
-	assert Example(mint=i).mhex == b'\x57'
-	assert Example(mhex=b).mint == 2
-	assert BigExample(mint=i, nint=j).mhex == b'\x57'
-	assert BigExample(mint=i, nint=j).nhex == b'\x42'
 
 @given(integers(), binary())
 def test_Object_repr(i, b):

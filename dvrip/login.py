@@ -52,8 +52,8 @@ class ClientLogin(Object, ControlMessage):
 
 	username: member[str]  = member('UserName')
 	passhash: member[str]  = member('PassWord')
-	hash:     member[Hash] = member('EncryptType', default=Hash.XMMD5)
-	service:  member[str]  = member('LoginType', default='DVRIP-Web')
+	hash:     member[Hash] = member('EncryptType')
+	service:  member[str]  = member('LoginType')
 
 	@classmethod
 	def replies(cls, number):

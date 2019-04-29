@@ -20,7 +20,7 @@ dvrip.packet._write = _write  # pylint: disable=protected-access
 
 
 conn = Connection(Socket(AF_INET, SOCK_STREAM))
-rep  = conn.connect((argv[1], 34567), argv[2], xmmd5(argv[3]))
+rep  = conn.connect((argv[1], 34567), argv[2], argv[3])
 print(rep.status, rep.session)
 rep2 = conn.logout()  # pylint: disable=undefined-loop-variable
 print(rep2.status, rep2.session)

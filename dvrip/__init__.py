@@ -50,11 +50,15 @@ class Connection(object):
 			results.extend(chunk)
 		return results
 
-	def login(self, *, username, **named):
+	def login(self, username, password, hash=Hash.XMMD5,  # pylint: disable=redefined-builtin
+	          service='DVRIP-Web'):
 		assert self.session is None
 
 		self.session = Session(0)
-		request = ClientLogin(username=username, **named)
+		request = ClientLogin(username=username,
+		                      passhash=hash.func(password),
+		                      hash=hash,
+		                      service=service)
 		reply, = self.request(request)  # pylint: disable=unbalanced-tuple-unpacking
 		DVRIPRequestError.signal(request, reply)
 		self.session  = reply.session

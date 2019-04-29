@@ -173,8 +173,6 @@ def _compose(*args: Callable[[Any], Any]) -> Callable[[Any], Any]:
 	     env)
 	return env['composition']
 
-_SENTINEL = object()
-
 class member(Member[T]):
 	__slots__ = ('key', 'pipe', 'default', 'json_to', 'for_json')
 
@@ -185,15 +183,12 @@ class member(Member[T]):
 	                     = None,
 	             *args:  Tuple[Callable[[Any], Any],
 	                           Callable[[Any], Any]],
-	             default = _SENTINEL
 	            ) -> None:
 		self.key   = key
 		if conv is not None:
 			self.pipe = (conv, *args)
 		else:
 			self.pipe = ()
-		if default is not _SENTINEL:
-			self.default: str = default
 		self.json_to:  Callable[[object], T]
 		self.for_json: Callable[[T], object]
 
@@ -229,6 +224,8 @@ class member(Member[T]):
 
 
 class optionalmember(member[V]):
+	default = NotImplemented
+
 	def push(self, push, value):
 		if value is NotImplemented:
 			return

@@ -145,7 +145,10 @@ def noconn(conn):
 	return conn
 
 def test_ClientLogin_topackets(noconn):
-	p, = tuple(ClientLogin(username='admin', passhash='tlJwpbo6')
+	p, = tuple(ClientLogin(username='admin',
+	                       passhash='tlJwpbo6',
+	                       hash=Hash.XMMD5,
+	                       service='DVRIP-Web')
 	                      .topackets(noconn))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x00\x00\xE8\x03\x5F\x00\x00\x00'
@@ -156,7 +159,10 @@ def test_ClientLogin_topackets(noconn):
 	                      b'\x0A\x00')
 
 def test_ClientLogin_topackets_chunked(noconn):
-	p, q = tuple(ClientLogin(username='a'*16384, passhash='tlJwpbo6')
+	p, q = tuple(ClientLogin(username='a'*16384,
+	                         passhash='tlJwpbo6',
+	                         hash=Hash.XMMD5,
+	                         service='DVRIP-Web')
 	                        .topackets(noconn))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x02\x00\xE8\x03\x00\x40\x00\x00'
@@ -343,8 +349,7 @@ def test_Connection_login(conn, rfile, wfile):
 	conn.session = session
 
 	rfile.seek(0)
-	conn.connect(('example.com', conn.PORT),
-	             username='admin', passhash='abc', service='def')
+	conn.connect(('example.com', conn.PORT), 'admin', '')
 	wfile.seek(0)
 	m = ClientLogin.frompackets([Packet.load(wfile)])
 
@@ -364,10 +369,7 @@ def test_Connection_login_invalid(conn, rfile, wfile):
 	rfile.seek(0)
 	with raises(DVRIPRequestError, match='Unknown error'):
 		try:
-			conn.connect(('example.com', conn.PORT),
-			             username='admin',
-			             passhash='abc',
-			             service='def')
+			conn.connect(('example.com', conn.PORT), 'admin', '')
 		except DVRIPRequestError as e:
 			assert e.code == Status.ERROR.code
 			raise
