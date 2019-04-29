@@ -1,10 +1,11 @@
+from abc     import abstractmethod
 from enum    import Enum, unique
 from io      import RawIOBase
 from json    import dumps, load
 from string  import hexdigits
 from .errors import DVRIPDecodeError
 from .packet import Packet
-from .typing import for_json, json_to
+from .typing import Value, for_json, json_to
 
 __all__ = ('Session', 'Status', 'ControlMessage', 'ControlFilter')
 
@@ -147,8 +148,13 @@ class Status(Enum):
 	SYNTAX   = (608, False, 'Illegal configuration syntax')
 
 
-class ControlMessage(object):
+class ControlMessage(Value):
 	__slots__ = ()
+
+	@property
+	@abstractmethod
+	def type(self):
+		raise NotImplementedError
 
 	def chunks(self):
 		size = Packet.MAXLEN  # FIXME Don't mention Packet explicitly?
