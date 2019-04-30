@@ -144,7 +144,7 @@ setup(
 	],
 
 	packages=['dvrip'],
-	scripts=['dvr', 'test_connect'],
+	scripts=['dvr', 'dvrip_test'],
 	python_requires='>=3.6, <4',
 	install_requires=[
 		'typing_inspect >=0.4, <0.5'
