@@ -117,7 +117,7 @@ with open('README.rst', 'r') as fp:
 
 setup(
 	name='dvrip',
-	version='0.0.0',
+	version='0.0.1',
 	author='Alexander Shpilkin',
 	author_email='ashpilkin@gmail.com',
 	description=title,
