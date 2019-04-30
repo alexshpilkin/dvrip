@@ -37,13 +37,18 @@ class pytest(Command):
 
 	def initialize_options(self):
 		self.pytest_args = ' '.join([
-			'--cov',
 			'--cov-report term:skip-covered',
 			'--cov-report annotate',
 		])
 
 	def finalize_options(self):
 		self.pytest_args = split(self.pytest_args)
+		for package in self.distribution.packages or []:
+			self.pytest_args.extend(['--cov', package])
+		for module in self.distribution.py_modules or []:
+			self.pytest_args.extend(['--cov', module + '.py'])
+		for script in self.distribution.scripts or []:
+			self.pytest_args.extend(['--cov', script])
 
 	def run(self):
 		from pytest import main as run_pytest  # type: ignore
