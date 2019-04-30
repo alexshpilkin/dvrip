@@ -75,12 +75,12 @@ class SystemInfo(Object):
 
 class PartitionInfo(Object):
 	# pylint: disable=line-too-long
-	_number:       member[int]                = member('LogicSerialNo')  # FIXME unclear
-	_driver:       member[int]                = member('DirverType')  # FIXME unclear
-	current:       member[bool]               = member('IsCurrent')
-	_status:       member[int]                = member('Status')  # FIXME unclear
-	size:          member[int]                = member('TotalSpace', hextype)   # 2**20 bytes
-	free:          member[int]                = member('RemainSpace', hextype)  # 2**20 bytes
+	_number:       member[int]  = member('LogicSerialNo')  # FIXME unclear
+	_driver:       member[int]  = member('DirverType')  # FIXME unclear
+	current:       member[bool] = member('IsCurrent')
+	_status:       member[int]  = member('Status')  # FIXME unclear
+	size:          member[int]  = member('TotalSpace', hextype)   # 2**20 bytes
+	free:          member[int]  = member('RemainSpace', hextype)  # 2**20 bytes
 	viewedstart:   member[Optional[datetime]] = member('OldStartTime', datetimetype)  # FIXME unclear (et seqq)
 	viewedend:     member[Optional[datetime]] = member('OldEndTime', datetimetype)
 	unviewedstart: member[Optional[datetime]] = member('NewStartTime', datetimetype)

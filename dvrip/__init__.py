@@ -80,11 +80,18 @@ class Client(Connection):
 	def systeminfo(self):
 		reply = self.request(GetInfo(category=Info.SYSTEM,
 		                             session=self.session))
-		if (reply.category != Info.SYSTEM or
-		    reply.system is NotImplemented):
+		if reply.system is NotImplemented:
 			raise DVRIPDecodeError('invalid system info reply')
 		reply.system.chassis = self._logininfo.chassis
 		return reply.system
+
+	def storageinfo(self):
+		reply = self.request(GetInfo(category=Info.STORAGE,
+		                             session=self.session))
+		if reply.storage is NotImplemented:
+			raise DVRIPDecodeError('invalid system info reply')
+		return reply.storage
+
 
 class Server(Connection):
 	pass

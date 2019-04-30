@@ -66,6 +66,21 @@ def do_info(conn: Client, args: List[str]) -> None:
 			line.append('{} {}'.format(attr, value))
 	print(' '.join(line))  # system line
 
+	for disk in conn.storageinfo():
+		print('disk {}'.format(disk.number))  # disk group
+		for i, part in zip(range(disk.parts), disk.partinfo):
+			line = ['  part {}'.format(i)]
+			if part.current:
+				line.append('current')
+			line.append('size {}M free {}M'
+			            .format(part.size, part.free))
+			for attr in ('viewedstart', 'viewedend',
+			             'unviewedstart', 'unviewedend'):
+				date = getattr(part, attr)
+				line.append('{} {}'
+				            .format(attr, date.isoformat()))
+			print(' '.join(line))  # partition line
+
 	line = []
 	minutes = info.uptime
 	hours, minutes = divmod(minutes, 60)
