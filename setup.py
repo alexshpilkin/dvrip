@@ -145,13 +145,15 @@ setup(
 
 	packages=['dvrip'],
 	scripts=['dvr', 'dvrip_test'],
-	python_requires='>=3.6, <4',
+	python_requires='>=3.7, <4',
 	install_requires=[
-		'typing_inspect >=0.4, <0.5'
+		'typing_inspect >=0.4, <0.5',
 	],
 	tests_require=[
 		'hypothesis',
+		'mock',
 		'mypy >=0.700',
+		'typing_extensions',
 		'pylint >=2.3',
 		'pytest',
 		'pytest-cov',

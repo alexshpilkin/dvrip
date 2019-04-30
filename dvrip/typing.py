@@ -6,9 +6,11 @@ from sys import intern
 from typing import Any, Callable, Dict, Generic, List, MutableMapping, \
                    Optional, Tuple, TYPE_CHECKING, Type, TypeVar, Union, \
                    get_type_hints
-from typing_extensions import Protocol, runtime
 from typing_inspect import is_generic_type, get_origin, get_args  # type: ignore
 from .errors import DVRIPDecodeError
+
+if TYPE_CHECKING:  # pragma: no cover
+	from typing_extensions import Protocol, runtime
 
 __all__ = ('Value', 'for_json', 'json_to', 'jsontype', 'EnumValueMeta',
            'EnumValue', 'Member', 'member', 'optionalmember', 'absentmember',
