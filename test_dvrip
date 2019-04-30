@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+
+from socket import AF_INET, SOCK_STREAM, socket as Socket
+from sys    import argv, stderr
+from dvrip  import *  # pylint: disable=wildcard-import,unused-wildcard-import
+
+
+import dvrip.packet
+
+def _read(file, length, _read=dvrip.packet._read):  # pylint: disable=protected-access
+	data = _read(file, length)
+	print('recv', data if data[:1].isascii() else data.hex(), file=stderr,
+	      flush=True)
+	return data
+dvrip.packet._read = _read  # pylint: disable=protected-access
+
+def _write(file, data, _write=dvrip.packet._write):  # pylint: disable=protected-access
+	print('send', data if data[:1].isascii() else data.hex(), file=stderr,
+	      flush=True)
+	return _write(file, data)
+dvrip.packet._write = _write  # pylint: disable=protected-access
+
+
+conn = Client(Socket(AF_INET, SOCK_STREAM))
+conn.connect((argv[1], 34567), argv[2], argv[3])
+print(conn.systeminfo())
+print(conn.request(GetInfo(session=conn.session, category=Info.STORAGE))
+          .storage)
+conn.logout()

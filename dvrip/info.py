@@ -42,9 +42,9 @@ class Info(Enum):
 		except ValueError:
 			raise DVRIPDecodeError('not a known info category')
 
-	SYSTEM  = 'SystemInfo'
-	STORAGE = 'StorageInfo'
-	_STATUS  = 'WorkState' # TODO
+	SYSTEM   = 'SystemInfo'
+	STORAGE  = 'StorageInfo'
+	ACTIVITY = 'WorkState'
 
 
 class SystemInfo(Object):
@@ -94,14 +94,31 @@ class DiskInfo(Object):
 StorageInfo = List[DiskInfo]
 
 
+class TriggerInfo(Object):
+	in_:        member[int] = member('AlarmIn')
+	out:        member[int] = member('AlarmOut')
+	obscure:    member[int] = member('VideoBlind')
+	disconnect: member[int] = member('VideoLoss')
+	motion:     member[int] = member('VideoMotion')
+
+class ChannelInfo(Object):
+	bitrate:   member[int]  = member('Bitrate') # 2**10 bits/second
+	recording: member[bool] = member('Record')
+
+class ActivityInfo(Object):
+	triggers: member[TriggerInfo]       = member('AlarmState')
+	channels: member[List[ChannelInfo]] = member('ChannelState')
+
+
 class GetInfoReply(Object, ControlMessage):
 	type = 1021
 
 	status:   member[Status]  = member('Ret')
 	category: member[Info]    = member('Name')
 	session:  member[Session] = member('SessionID')
-	system:   optionalmember[SystemInfo]  = optionalmember('SystemInfo')
-	storage:  optionalmember[StorageInfo] = optionalmember('StorageInfo')
+	system:   optionalmember[SystemInfo]   = optionalmember('SystemInfo')
+	storage:  optionalmember[StorageInfo]  = optionalmember('StorageInfo')
+	activity: optionalmember[ActivityInfo] = optionalmember('WorkState')
 
 	# FIXME mutual exclusion?
 

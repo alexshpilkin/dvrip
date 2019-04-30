@@ -92,6 +92,13 @@ class Client(Connection):
 			raise DVRIPDecodeError('invalid system info reply')
 		return reply.storage
 
+	def activityinfo(self):
+		reply = self.request(GetInfo(category=Info.ACTIVITY,
+		                             session=self.session))
+		if reply.activity is NotImplemented:
+			raise DVRIPDecodeError('invalid system info reply')
+		return reply.activity
+
 
 class Server(Connection):
 	pass

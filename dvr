@@ -50,7 +50,7 @@ def connect(host: str, port: str, user: str, password: str) -> Client:
 
 	return conn
 
-def do_info(conn: Client, args: List[str]) -> None:
+def do_info(conn: Client, args: List[str]) -> None:  # pylint: disable=too-many-branches,too-many-locals
 	if args:
 		fail = args != ('-h')
 		print('usage: dvr ... info', file=stderr if fail else stdout)
@@ -81,6 +81,12 @@ def do_info(conn: Client, args: List[str]) -> None:
 				            .format(attr, date.isoformat()))
 			print(' '.join(line))  # partition line
 
+	actv = conn.activityinfo()
+	line = []
+	for i, chan in zip(range(info.videoin), actv.channels):
+		print('channel {} bitrate {}K/s'.format(i, chan.bitrate) +
+		      (' recording' if chan.recording else ''))
+
 	line = []
 	minutes = info.uptime
 	hours, minutes = divmod(minutes, 60)
@@ -89,6 +95,13 @@ def do_info(conn: Client, args: List[str]) -> None:
 		line.append("up P{}dT{:02}h{:02}m".format(days, hours, minutes))
 	else:
 		line.append("up PT{}h{:02}m".format(hours, minutes))
+	line.append('triggers')
+	for attr in ('in_', 'out', 'obscure', 'disconnect', 'motion'):
+		value = getattr(actv.triggers, attr)
+		if value:
+			line.append('{} {}'.format(attr.rstrip('_'), value))
+	if len(line) <= 2:
+		line.append('none')
 	print(' '.join(line))  # status line
 
 def usage(code: int = EX_USAGE, file: TextIO = stderr) -> NoReturn:
