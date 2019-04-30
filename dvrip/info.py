@@ -51,11 +51,11 @@ class SystemInfo(Object):
 	# pylint: disable=line-too-long
 	triggerin:   member[int] = member('AlarmInChannel')
 	triggerout:  member[int] = member('AlarmOutChannel')
-	build:       member[str] = member('BuildTime')
-	cryptover:   member[str] = member('EncryptVersion', _versiontype)
-	hardwarever: member[str] = member('HardWareVersion', _versiontype)
+	build:       member[Optional[datetime]] = member('BuildTime', datetimetype)
+	eeprom:      member[str] = member('EncryptVersion', _versiontype)
+	hardware:    member[str] = member('HardWareVersion', _versiontype)
 	serial:      member[str] = member('SerialNo')
-	softwarever: member[str] = member('SoftWareVersion', _versiontype)
+	software:    member[str] = member('SoftWareVersion', _versiontype)
 	commin:      member[int] = member('TalkInChannel')
 	commout:     member[int] = member('TalkOutChannel')
 	videoin:     member[int] = member('VideoInChannel')
@@ -66,7 +66,7 @@ class SystemInfo(Object):
 
 	_digitalin:  optionalmember[int] = optionalmember('DigChannel')  # FIXME unclear
 	_updatatime: optionalmember[str] = optionalmember('UpdataTime')  # FIXME unclear
-	hardware:    optionalmember[str] = optionalmember('HardWare')
+	board:       optionalmember[str] = optionalmember('HardWare')
 	_combine:    optionalmember[int] = optionalmember('CombineSwitch')  # FIXME unclear
 	_updatatype: optionalmember[int] = optionalmember('UpdataType', hextype)  # FIXME unclear
 
