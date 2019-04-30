@@ -37,7 +37,6 @@ class pytest(Command):
 
 	def initialize_options(self):
 		self.pytest_args = ' '.join([
-			'-v',
 			'--cov',
 			'--cov-report term:skip-covered',
 			'--cov-report annotate',

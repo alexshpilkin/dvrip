@@ -1,20 +1,21 @@
-from abc         import ABCMeta, abstractmethod
+from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
-from enum        import Enum, EnumMeta
-from sys         import intern
-from typing      import Any, Callable, Generic, MutableMapping, Optional, \
-                        Tuple, TYPE_CHECKING, Type, TypeVar, Union, \
-                        get_type_hints
+from collections.abc import Mapping, Sequence
+from enum import Enum, EnumMeta
+from sys import intern
+from typing import Any, Callable, Dict, Generic, List, MutableMapping, \
+                   Optional, Tuple, TYPE_CHECKING, Type, TypeVar, Union, \
+                   get_type_hints
 from typing_extensions import Protocol, runtime
 from typing_inspect import is_generic_type, get_origin, get_args  # type: ignore
-from .errors     import DVRIPDecodeError
+from .errors import DVRIPDecodeError
 
 __all__ = ('Value', 'for_json', 'json_to', 'jsontype', 'EnumValueMeta',
            'EnumValue', 'Member', 'member', 'optionalmember', 'absentmember',
            'ObjectMeta', 'Object')
 
 T = TypeVar('T')
-V = TypeVar('V', bound='Union[bool, int, str, Value]')
+V = TypeVar('V', bound='Union[bool, int, str, list, Dict[str, Any], Value]')
 O = TypeVar('O', bound='Object')
 
 
@@ -65,19 +66,33 @@ def for_json(obj: V.__bound__) -> object:  # pylint: disable=no-member
 	except AttributeError:
 		if isinstance(obj, (bool, int, str)):
 			return obj
+		if isinstance(obj, Sequence):
+			return list(obj)
+		if isinstance(obj, Mapping):
+			return dict(obj)
 		raise TypeError('not a JSON value')
 
 
 def json_to(type):  # pylint: disable=redefined-builtin
-	if issubclass(type, Value):
+	try:
 		return type.json_to
-	if issubclass(type, bool):  # needs to come before 'int'
-		return _json_to_bool
-	if issubclass(type, int):
-		return _json_to_int
-	if issubclass(type, str):
-		return _json_to_str
-	return None
+	except AttributeError:
+		if is_generic_type(type):  # needs to come before 'issubclass'
+			if get_origin(type) == list:
+				return _json_to_list(get_args(type)[0])
+			if get_origin(type) == dict:
+				return _json_to_dict(get_args(type)[1])
+		if issubclass(type, bool):  # needs to come before 'int'
+			return _json_to_bool
+		if issubclass(type, int):
+			return _json_to_int
+		if issubclass(type, str):
+			return _json_to_str
+		if issubclass(type, list):
+			raise TypeError('no element type specified for list')
+		if issubclass(type, dict):
+			raise TypeError('no value type specified for dict')
+	raise TypeError('not a JSON value type')
 
 
 def _json_to_bool(datum: object) -> bool:
@@ -96,6 +111,25 @@ def _json_to_str(datum: object) -> str:
 	if not isinstance(datum, str):
 		raise DVRIPDecodeError('not a string')
 	return str(datum)
+
+
+def _json_to_list(arg: Type[V]) -> Callable[[object], List[V]]:
+	_json_to = json_to(arg)
+	def _json_tolist(datum: object) -> List[V]:
+		if not isinstance(datum, list):
+			raise DVRIPDecodeError('not an array')
+		return [_json_to(item) for item in datum]
+	return _json_tolist
+
+
+def _json_to_dict(arg: Type[V]) -> Callable[[object], Dict[str, V]]:
+	_json_to = json_to(arg)
+	def _json_todict(datum: object) -> Dict[str, V]:
+		if not isinstance(datum, dict):
+			raise DVRIPDecodeError('not an object')
+		return {_json_to_str(key): _json_to(value)
+		        for key, value in datum.items()}
+	return _json_todict
 
 
 def jsontype(type):  # pylint: disable=redefined-builtin

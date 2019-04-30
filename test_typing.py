@@ -1,10 +1,11 @@
-from enum       import IntEnum
+from enum import IntEnum
 from hypothesis import given
-from hypothesis.strategies \
-                import binary, booleans, integers, sampled_from, text
-from pytest     import raises  # type: ignore
-from string     import hexdigits
-from typing     import Callable, SupportsBytes, Type, TypeVar, no_type_check
+from hypothesis.strategies import binary, booleans, dictionaries, integers, \
+                                  lists, sampled_from, text
+from pytest import raises  # type: ignore
+from string import hexdigits
+from typing import Callable, Dict, List, SupportsBytes, Type, TypeVar, \
+                   no_type_check
 
 from dvrip.errors import DVRIPDecodeError
 from dvrip.typing import EnumValue, Member, Object, Value, absentmember, \
@@ -106,6 +107,52 @@ def test_str_forjson_jsonto(s):
 @given(text())
 def test_str_jsonto_forjson(s):
 	assert for_json(json_to(str)(s)) == s
+
+@given(lists(integers()))
+def test_list_forjson(l):
+	assert for_json(l) == l
+
+@given(lists(integers()))
+def test_list_jsonto(l):
+	assert json_to(List[int])(l) == l
+	with raises(DVRIPDecodeError, match='not an array'):
+		json_to(List[int])({})
+	with raises(DVRIPDecodeError, match='not an integer'):
+		json_to(List[int])([False])
+	with raises(TypeError, match='no element type specified'):
+		json_to(list)(l)
+
+@given(lists(integers()))
+def test_list_forjson_jsonto(l):
+	assert json_to(List[int])(for_json(l)) == l
+
+@given(lists(integers()))
+def test_list_jsonto_forjson(l):
+	assert for_json(json_to(List[int])(l)) == l
+
+@given(dictionaries(text(), integers()))
+def test_dict_forjson(d):
+	assert for_json(d) == d
+
+@given(dictionaries(text(), integers()))
+def test_dict_jsonto(d):
+	assert json_to(Dict[str, int])(d) == d
+	with raises(DVRIPDecodeError, match='not an object'):
+		json_to(Dict[str, int])([])
+	with raises(DVRIPDecodeError, match='not a string'):
+		json_to(Dict[str, int])({42: 57})
+	with raises(DVRIPDecodeError, match='not an integer'):
+		json_to(Dict[str, int])({'key': False})
+	with raises(TypeError, match='no value type specified'):
+		json_to(dict)(d)
+
+@given(dictionaries(text(), integers()))
+def test_dict_forjson_jsonto(d):
+	assert json_to(Dict[str, int])(for_json(d)) == d
+
+@given(dictionaries(text(), integers()))
+def test_dict_jsonto_forjson(d):
+	assert for_json(json_to(Dict[str, int])(d)) == d
 
 def test_jsontype():
 	assert jsontype(int) == (json_to(int), for_json)
