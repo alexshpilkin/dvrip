@@ -144,7 +144,12 @@ setup(
 	],
 
 	packages=['dvrip'],
-	scripts=['dvr', 'dvrip_test'],
+	scripts=['dvrip_test'],
+	entry_points={
+		'console_scripts': [
+			'dvr = dvrip.__main__:run',
+		],
+	},
 	python_requires='>=3.7, <4',
 	install_requires=[
 		'typing_inspect >=0.4, <0.5',

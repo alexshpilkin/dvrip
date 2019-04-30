@@ -4,8 +4,10 @@ from dvrip import Client, DVRIPDecodeError, DVRIPRequestError
 from getopt import GetoptError, getopt
 from getpass import getpass
 from os import environ
-from socket import AF_INET, SOCK_STREAM, socket as Socket, getservbyname
-from sys import argv, exit, stderr, stdout  # pylint: disable=redefined-builtin
+from os.path import basename
+from socket import AF_INET, SOCK_STREAM, socket as Socket, gethostbyname, \
+                   getservbyname
+from sys import argv, executable, exit, stderr, stdout  # pylint: disable=redefined-builtin
 from typing import List, NoReturn, TextIO
 
 try:
@@ -18,6 +20,19 @@ except ImportError:  # BSD value  # pragma: no cover
 	EX_PROTOCOL = 76
 
 
+
+def prog():
+	name = basename(argv[0])
+	return ('{} -m dvrip'.format(executable)
+	        if name in {'__main__.py', '-c'}
+	        else name)
+
+def ioerr(e, code=EX_IOERR):
+	message = ('{}: {}'.format(e.filename, e.strerror) \
+	           if e.filename is not None else e.strerror)
+	print(message, file=stderr)
+	exit(code)
+
 def connect(host: str, port: str, user: str, password: str) -> Client:
 	try:
 		serv = int(port, base=0)
@@ -25,35 +40,32 @@ def connect(host: str, port: str, user: str, password: str) -> Client:
 		try:
 			serv = getservbyname(port)
 		except OSError as e:
-			print(e, file=stderr)
-			exit(EX_NOHOST)
+			ioerr(e, EX_NOHOST)
 
-	sock = Socket(AF_INET, SOCK_STREAM)
 	try:
-		sock.connect((host, serv))
+		host = gethostbyname(host)
 	except OSError as e:
-		# pylint: disable=redefined-outer-name
-		message = ('{}: {}'.format(e.filename, e.strerror) \
-		           if e.filename is not None else e.strerror)
-		print(message, file=stderr)
-		exit(EX_NOHOST)
+		ioerr(e, EX_NOHOST)
 
-	conn = Client(sock)
+	conn = Client(Socket(AF_INET, SOCK_STREAM))
 	try:
-		conn.login(user, password)
+		conn.connect((host, serv), user, password)
 	except DVRIPDecodeError as e:
 		print(e, file=stderr)
 		exit(EX_PROTOCOL)
 	except DVRIPRequestError as e:
 		print(e, file=stderr)
 		exit(2)  # FIXME more granular codes
+	except OSError as e:
+		ioerr(e)
 
 	return conn
 
-def do_info(conn: Client, args: List[str]) -> None:  # pylint: disable=too-many-branches,too-many-locals
+def run_info(conn: Client, args: List[str]) -> None:  # pylint: disable=too-many-branches,too-many-locals
 	if args:
-		fail = args != ('-h')
-		print('usage: dvr ... info', file=stderr if fail else stdout)
+		fail = tuple(args) != ('-h',)
+		print('usage: {} ... info'.format(prog()),
+		      file=stderr if fail else stdout)
 		exit(EX_USAGE if fail else 0)
 
 	info = conn.systeminfo()
@@ -105,11 +117,12 @@ def do_info(conn: Client, args: List[str]) -> None:  # pylint: disable=too-many-
 	print(' '.join(line))  # status line
 
 def usage(code: int = EX_USAGE, file: TextIO = stderr) -> NoReturn:
-	print('usage: dvr [-p PORT] [-u USERNAME] HOST COMMAND ...',
+	print('usage: {} [-p PORT] [-u USERNAME] HOST COMMAND ...'
+	      .format(prog()),
 	      file=file, flush=True)
 	exit(code)
 
-def main(args: List[str]) -> None:
+def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-default-value
 	try:
 		opts, args = getopt(args, 'hp:u:')
 	except GetoptError:
@@ -141,15 +154,9 @@ def main(args: List[str]) -> None:
 
 	conn = connect(host, port, username, password)
 	try:
-		do_info(conn, args)
+		run_info(conn, args)
 	finally:
 		conn.logout()
 
 if __name__ == '__main__':
-	try:
-		main(argv[1:])
-	except OSError as e:
-		message = ('{}: {}'.format(e.filename, e.strerror) \
-		           if e.filename is not None else e.strerror)
-		print(message, file=stderr)
-		exit(EX_IOERR)
+	run()
