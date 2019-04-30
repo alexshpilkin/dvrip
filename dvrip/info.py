@@ -1,6 +1,9 @@
+from datetime import datetime
 from enum     import Enum, unique
+from typing   import List, Optional
 from .errors  import DVRIPDecodeError
-from .message import ControlMessage, ControlRequest, Session, Status, hextype
+from .message import ControlMessage, ControlRequest, Session, Status, \
+                     datetimetype, hextype
 from .typing  import Object, absentmember, for_json, json_to, member, \
                      optionalmember
 
@@ -39,9 +42,10 @@ class Info(Enum):
 		except ValueError:
 			raise DVRIPDecodeError('not a known info category')
 
-	SYSTEM = 'SystemInfo'
-	_STORAGE = 'StorageInfo' # TODO
+	SYSTEM  = 'SystemInfo'
+	STORAGE = 'StorageInfo'
 	_STATUS  = 'WorkState' # TODO
+
 
 class SystemInfo(Object):
 	# pylint: disable=line-too-long
@@ -59,21 +63,47 @@ class SystemInfo(Object):
 	views:       member[int] = member('ExtraChannel')
 	audioin:     member[int] = member('AudioInChannel')
 	uptime:      member[int] = member('DeviceRunTime', hextype)  # minutes
+
 	_digitalin:  optionalmember[int] = optionalmember('DigChannel')  # FIXME unclear
 	_updatatime: optionalmember[str] = optionalmember('UpdataTime')  # FIXME unclear
 	hardware:    optionalmember[str] = optionalmember('HardWare')
 	_combine:    optionalmember[int] = optionalmember('CombineSwitch')  # FIXME unclear
 	_updatatype: optionalmember[int] = optionalmember('UpdataType', hextype)  # FIXME unclear
+
 	chassis:     absentmember[str] = absentmember()  # from _logininfo
+
+
+class PartitionInfo(Object):
+	# pylint: disable=line-too-long
+	_number:       member[int]                = member('LogicSerialNo')  # FIXME unclear
+	_driver:       member[int]                = member('DirverType')  # FIXME unclear
+	current:       member[bool]               = member('IsCurrent')
+	_status:       member[int]                = member('Status')  # FIXME unclear
+	size:          member[int]                = member('TotalSpace', hextype)   # 2**20 bytes
+	free:          member[int]                = member('RemainSpace', hextype)  # 2**20 bytes
+	viewedstart:   member[Optional[datetime]] = member('OldStartTime', datetimetype)  # FIXME unclear (et seqq)
+	viewedend:     member[Optional[datetime]] = member('OldEndTime', datetimetype)
+	unviewedstart: member[Optional[datetime]] = member('NewStartTime', datetimetype)
+	unviewedend:   member[Optional[datetime]] = member('NewEndTime', datetimetype)
+
+class DiskInfo(Object):
+	number:   member[int]                 = member('PlysicalNo')
+	parts:    member[int]                 = member('PartNumber')
+	partinfo: member[List[PartitionInfo]] = member('Partition')
+
+StorageInfo = List[DiskInfo]
 
 
 class GetInfoReply(Object, ControlMessage):
 	type = 1021
 
-	status:   member[Status]     = member('Ret')
-	category: member[Info]       = member('Name')
-	session:  member[Session]    = member('SessionID')
-	system:   member[SystemInfo] = optionalmember('SystemInfo')
+	status:   member[Status]  = member('Ret')
+	category: member[Info]    = member('Name')
+	session:  member[Session] = member('SessionID')
+	system:   optionalmember[SystemInfo]  = optionalmember('SystemInfo')
+	storage:  optionalmember[StorageInfo] = optionalmember('StorageInfo')
+
+	# FIXME mutual exclusion?
 
 
 class GetInfo(Object, ControlRequest):

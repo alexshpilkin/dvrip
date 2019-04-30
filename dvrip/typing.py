@@ -73,21 +73,21 @@ def for_json(obj: V.__bound__) -> object:  # pylint: disable=no-member
 		raise TypeError('not a JSON value')
 
 
-def json_to(type):  # pylint: disable=redefined-builtin
+def json_to(type: Type[V]) -> Callable[[object], V]:  # pylint: disable=redefined-builtin
 	try:
-		return type.json_to
+		return type.json_to  # type: ignore
 	except AttributeError:
 		if is_generic_type(type):  # needs to come before 'issubclass'
 			if get_origin(type) == list:
-				return _json_to_list(get_args(type)[0])
+				return _json_to_list(get_args(type)[0])  # type: ignore
 			if get_origin(type) == dict:
-				return _json_to_dict(get_args(type)[1])
+				return _json_to_dict(get_args(type)[1])  # type: ignore
 		if issubclass(type, bool):  # needs to come before 'int'
-			return _json_to_bool
+			return _json_to_bool  # type: ignore
 		if issubclass(type, int):
-			return _json_to_int
+			return _json_to_int  # type: ignore
 		if issubclass(type, str):
-			return _json_to_str
+			return _json_to_str  # type: ignore
 		if issubclass(type, list):
 			raise TypeError('no element type specified for list')
 		if issubclass(type, dict):

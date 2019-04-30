@@ -1,8 +1,10 @@
-from abc     import abstractmethod
-from enum    import Enum, unique
-from io      import RawIOBase
-from json    import dumps, load
-from string  import hexdigits
+from abc import abstractmethod
+from datetime import datetime
+from enum import Enum, unique
+from io import RawIOBase
+from json import dumps, load
+from string import hexdigits
+from typing import Optional
 from .errors import DVRIPDecodeError
 from .packet import Packet
 from .typing import Value, for_json, json_to
@@ -31,10 +33,10 @@ class _ChunkReader(RawIOBase):
 		return len(chunk)
 
 
-def _hex_for_json(value: int) -> str:
-	return json_to(str)('0x{:08X}'.format(value))
+def _hex_for_json(value: int) -> object:
+	return for_json('0x{:08X}'.format(value))
 
-def _json_to_hex(datum: str) -> int:
+def _json_to_hex(datum: object) -> int:
 	datum = json_to(str)(datum)
 	if (datum[:2] != '0x' or len(datum) > 10 or
 	    not all(c in hexdigits for c in datum[2:])):
@@ -42,6 +44,37 @@ def _json_to_hex(datum: str) -> int:
 	return int(datum[2:], 16)
 
 hextype = (_json_to_hex, _hex_for_json)
+
+
+_DTFORMAT = '%Y-%m-%d %H:%M:%S'
+_NOSTRING = '0000-00-00 00:00:00'
+_EPSTRING = '2000-00-00 00:00:00'
+EPOCH     = datetime(2000, 1, 1, 0, 0, 0)
+
+def _datetime_for_json(value: Optional[datetime]) -> object:
+	if value is None:
+		return _NOSTRING
+	if value == EPOCH:
+		return _EPSTRING
+	if value <= EPOCH:
+		raise ValueError('datetime not after the epoch')
+	return for_json(value.strftime(_DTFORMAT))
+
+def _json_to_datetime(datum: object) -> Optional[datetime]:
+	datum = json_to(str)(datum)
+	if datum == _NOSTRING:
+		return None
+	if datum == _EPSTRING:
+		return EPOCH
+	try:
+		value = datetime.strptime(datum, _DTFORMAT)
+	except ValueError:
+		raise DVRIPDecodeError('not a datetime string')
+	if value <= EPOCH:
+		raise DVRIPDecodeError('datetime not after the epoch')
+	return value
+
+datetimetype = (_json_to_datetime, _datetime_for_json)
 
 
 class Session(object):

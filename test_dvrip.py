@@ -1,15 +1,17 @@
+from datetime import datetime
 from hypothesis import given
-from hypothesis.strategies \
-                import booleans, integers, none, one_of, sampled_from, text
-from io         import BytesIO, RawIOBase
-from mock       import Mock
-from pytest     import fixture, raises
-from socket     import socket as Socket
+from hypothesis.strategies import booleans, integers, none, one_of, \
+                                  sampled_from, text
+from io import BytesIO, RawIOBase
+from mock import Mock
+from pytest import fixture, raises
+from socket import socket as Socket
 
 # pylint: disable=wildcard-import,unused-wildcard-import
 from dvrip         import *
 from dvrip.info    import _json_to_version, _version_for_json, _versiontype
-from dvrip.message import _ChunkReader
+from dvrip.message import _ChunkReader, _datetime_for_json, EPOCH, \
+                          _json_to_datetime
 from dvrip.packet  import _mirrorproperty
 
 
@@ -29,6 +31,27 @@ def test_mirrorproperty():
 	assert getattr(test, 'x', None) is None
 	test.x = 'goodbye'
 	assert test.y == 'goodbye'
+
+def test_datetime_for_json():
+	assert (_datetime_for_json(datetime(2019, 4, 30, 15, 0, 0)) ==
+	        '2019-04-30 15:00:00')
+	assert (_datetime_for_json(datetime(2000, 1, 1, 0, 0, 0)) ==
+	        '2000-00-00 00:00:00')
+	assert (_datetime_for_json(None) == '0000-00-00 00:00:00')
+	with raises(ValueError, match='datetime not after the epoch'):
+		_datetime_for_json(datetime(1999, 1, 1, 0, 0, 0))
+
+def test_json_to_datetime():
+	assert (_json_to_datetime('2019-04-30 15:00:00') ==
+	        datetime(2019, 4, 30, 15, 0, 0))
+	assert (_json_to_datetime('2000-00-00 00:00:00') ==
+	        datetime(2000, 1, 1, 0, 0, 0) ==
+	        EPOCH)
+	assert (_json_to_datetime('0000-00-00 00:00:00') == None)
+	with raises(DVRIPDecodeError, match='not a datetime string'):
+		_json_to_datetime('SPAM')
+	with raises(DVRIPDecodeError, match='datetime not after the epoch'):
+		_json_to_datetime('1999-01-01 00:00:00')
 
 def test_ChunkReader():
 	r = _ChunkReader([b'hel', b'lo'])
