@@ -1,6 +1,8 @@
-include CHANGES.rst
 include LICENSE
-include README.rst
+include *.rst
+global-include _version_lock.py
+
 include .coveragerc
 include pylintrc
+include pytest.ini
 include test_*.py

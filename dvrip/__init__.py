@@ -1,8 +1,12 @@
-from .errors  import *
-from .info    import *
-from .login   import *
+# pylint: disable=unused-import
+from .errors import *
+from .info import *
+from .login import *
 from .message import *
-from .packet  import *
+from .packet import *
+
+from ._version import version as __version__
+__version_info__ = (int(n) for n in __version__.split('.')[:3])  # :3
 
 
 class Connection(object):

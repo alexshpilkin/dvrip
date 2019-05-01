@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 
-from setuptools               import Command, setup   # type: ignore
-from setuptools.command.test  import test as _test    # type: ignore
+from os.path import exists, join
+from setuptools import Command, setup   # type: ignore
+from setuptools.command.build_py import build_py as _build_py  # type: ignore
+from setuptools.command.egg_info import egg_info as _egg_info  # type: ignore
+from setuptools.command.egg_info import manifest_maker as _manifest_maker  # type: ignore # pylint: disable=line-too-long
+from setuptools.command.egg_info import write_file  # type: ignore
+from setuptools.command.test import test as _test  # type: ignore
 from setuptools.command.sdist import sdist as _sdist  # type: ignore
-from shlex                    import split  # type: ignore
-from sys                      import exit   # pylint: disable=redefined-builtin
+from shlex import split  # type: ignore
+from sys import exit   # pylint: disable=redefined-builtin
 
 # pylint: disable=attribute-defined-outside-init  # *_args are conventionally so
 
@@ -105,11 +110,56 @@ class test(_test, pylint, pytest, mypy):
 			base.run(self)
 
 
-class sdist(_sdist):
-	def initialize_options(self):
-		super().initialize_options()
-		self.formats = ['gztar', 'zip']
+# Workaround for pypa/setuptools#1064
 
+def makever(cmd, pkgdir):
+	cmd.mkpath(pkgdir)
+	with open(join(pkgdir, '_version_lock.py'), 'w') as file:
+		print('version = {!r}'.format(version), file=file)  # pylint: disable=undefined-variable
+
+class sdist(_sdist):
+	def make_release_tree(self, base_dir, files):
+		super().make_release_tree(base_dir, files)
+		for package in self.distribution.packages:
+			if not self.dry_run:
+				makever(self, join(base_dir, package))
+
+class egg_info(_egg_info):
+	def find_sources(self):
+		# exact copy of setuptools, to override manifest_maker
+		manifest_filename = join(self.egg_info, "SOURCES.txt")
+		mm = manifest_maker(self.distribution)
+		mm.manifest = manifest_filename
+		mm.run()
+		self.filelist = mm.filelist
+
+class manifest_maker(_manifest_maker):
+	def prune_file_list(self):
+		super().prune_file_list()
+		for package in self.distribution.packages:
+			if not exists(join(package, '_version.py')):
+				continue
+			self.filelist.files.append(join(package, '_version_lock.py'))
+
+	def write_manifest(self):
+		# exact copy of setuptools except for no _repair() call
+		files = [self._manifest_normalize(f)
+		         for f in self.filelist.files]
+		msg = "writing manifest file '%s'" % self.manifest
+		self.execute(write_file, (self.manifest, files), msg)
+
+class build_py(_build_py):
+	def run(self):
+		if not self.dry_run:
+			for package in self.distribution.packages:
+				if not exists(join(package, '_version.py')):
+					continue
+				makever(self, join(self.build_lib, package))
+		super().run()
+
+
+_repo = '.git'
+exec(open('dvrip/_version.py').read())  # pylint: disable=exec-used
 
 with open('README.rst', 'r') as fp:
 	title = None
@@ -122,13 +172,13 @@ with open('README.rst', 'r') as fp:
 
 setup(
 	name='dvrip',
-	version='0.0.1',
+	version=version,  # type: ignore  # pylint: disable=undefined-variable
 	author='Alexander Shpilkin',
 	author_email='ashpilkin@gmail.com',
 	description=title,
 	long_description=readme,
 	long_description_content_type='text/x-rst',
-	url='https://github.com/alexshpilkin/hattifnatt',
+	url='https://github.com/alexshpilkin/dvrip',
 	classifiers=[
 		'Development Status :: 2 - Pre-Alpha',
 		'Intended Audience :: Developers',
@@ -137,7 +187,6 @@ setup(
 		'Operating System :: OS Independent',
 		'Programming Language :: Python',
 		'Programming Language :: Python :: 3',
-		'Programming Language :: Python :: 3.6',
 		'Programming Language :: Python :: 3.7',
 		'Topic :: Communications',
 		'Topic :: Internet',
@@ -155,6 +204,16 @@ setup(
 			'dvr = dvrip.__main__:run',
 		],
 	},
+	include_package_data = True,
+	exclude_package_data = {
+		'': [
+			'.coveragerc',
+			'pylintrc',
+			'pytest.ini',
+			'test_*.py',
+		],
+	},
+
 	python_requires='>=3.7, <4',
 	install_requires=[
 		'typing_inspect >=0.4, <0.5',
@@ -163,16 +222,18 @@ setup(
 		'hypothesis',
 		'mock',
 		'mypy >=0.700',
-		'typing_extensions',
-		'pylint >=2.3',
+		'pylint >=2.3.0',
 		'pytest',
 		'pytest-cov',
+		'typing_extensions',
 	],
 
 	cmdclass={
-		'lint':  pylint,
+		'build_py': build_py,
+		'egg_info': egg_info,
+		'lint': pylint,
 		'sdist': sdist,
-		'test':  test,
-		'type':  mypy,
+		'test': test,
+		'type': mypy,
 	},
 )
