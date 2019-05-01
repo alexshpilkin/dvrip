@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from dvrip import Client, DVRIPDecodeError, DVRIPRequestError
 from getopt import GetoptError, getopt
 from getpass import getpass
 from os import environ
@@ -9,6 +8,8 @@ from socket import AF_INET, SOCK_STREAM, socket as Socket, gethostbyname, \
                    getservbyname
 from sys import argv, executable, exit, stderr, stdout  # pylint: disable=redefined-builtin
 from typing import List, NoReturn, TextIO
+from .errors import DVRIPDecodeError, DVRIPRequestError
+from .io import DVRIPClient
 
 try:
 	# pylint: disable=ungrouped-imports
@@ -35,7 +36,7 @@ def ioerr(e, code=EX_IOERR):
 	exit(code)
 
 
-def connect(host: str, port: str, user: str, password: str) -> Client:
+def connect(host: str, port: str, user: str, password: str) -> DVRIPClient:
 	try:
 		serv = int(port, base=0)
 	except ValueError:
@@ -49,7 +50,7 @@ def connect(host: str, port: str, user: str, password: str) -> Client:
 	except OSError as e:
 		ioerr(e, EX_NOHOST)
 
-	conn = Client(Socket(AF_INET, SOCK_STREAM))
+	conn = DVRIPClient(Socket(AF_INET, SOCK_STREAM))
 	try:
 		conn.connect((host, serv), user, password)
 	except DVRIPDecodeError as e:
@@ -64,7 +65,7 @@ def connect(host: str, port: str, user: str, password: str) -> Client:
 	return conn
 
 
-def run_info(conn: Client, args: List[str]) -> None:  # pylint: disable=too-many-branches,too-many-locals
+def run_info(conn: DVRIPClient, args: List[str]) -> None:  # pylint: disable=too-many-branches,too-many-locals
 	if args:
 		fail = tuple(args) != ('-h',)
 		print('Usage: {} ... info'.format(prog()),
@@ -121,7 +122,7 @@ def run_info(conn: Client, args: List[str]) -> None:  # pylint: disable=too-many
 	print(' '.join(line))  # status line
 
 
-def run_time(conn: Client, args: List[str]) -> None:
+def run_time(conn: DVRIPClient, args: List[str]) -> None:
 	from dateparser import parse as dateparse  # type: ignore
 
 	time = dateparse(args[0] if args else '1970-01-01')

@@ -8,11 +8,18 @@ from pytest import fixture, raises
 from socket import socket as Socket
 
 # pylint: disable=wildcard-import,unused-wildcard-import
-from dvrip         import *
-from dvrip.info    import _json_to_version, _version_for_json, _versiontype
+from dvrip import DVRIP_PORT
+from dvrip.errors import *
+from dvrip.info import *
+from dvrip.info import _json_to_version, _version_for_json, _versiontype
+from dvrip.io import *
+from dvrip.login import *
+from dvrip.message import *
 from dvrip.message import _ChunkReader, _datetime_for_json, EPOCH, \
                           _json_to_datetime
-from dvrip.packet  import _mirrorproperty
+from dvrip.packet import *
+from dvrip.packet import _mirrorproperty
+from dvrip.typing import *
 
 
 def test_xmmd5_empty():
@@ -187,11 +194,11 @@ def srvsock(srvfile):
 
 @fixture
 def cliconn(clisock):
-	return Client(clisock)
+	return DVRIPClient(clisock)
 
 @fixture
 def srvconn(srvsock):
-	return Server(srvsock)
+	return DVRIPServer(srvsock)
 
 @fixture
 def session():
@@ -404,7 +411,7 @@ def test_Client_login(session, cliconn, clitosrv, srvtocli):
 	                      .topackets(session, 1))
 	p.dump(srvtocli); srvtocli.seek(0)
 
-	cliconn.connect(('example.com', cliconn.PORT), 'admin', '')
+	cliconn.connect(('example.com', DVRIP_PORT), 'admin', '')
 	clitosrv.seek(0); m = ClientLogin.frompackets([Packet.load(clitosrv)])
 	assert (m.username == 'admin' and m.passhash == xmmd5('') and
 	        m.hash == Hash.XMMD5 and m.service == 'DVRIP-Web')
@@ -422,7 +429,7 @@ def test_Client_login_invalid(session, cliconn, clitosrv, srvtocli):
 
 	with raises(DVRIPRequestError, match='Unknown error'):
 		try:
-			cliconn.connect(('example.com', cliconn.PORT),
+			cliconn.connect(('example.com', DVRIP_PORT),
 			                'admin', '')
 		except DVRIPRequestError as e:
 			assert e.code == Status.ERROR.code

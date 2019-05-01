@@ -3,7 +3,8 @@
 from datetime import timedelta
 from socket import AF_INET, SOCK_STREAM, socket as Socket
 from sys import argv, stderr
-from dvrip  import *  # pylint: disable=wildcard-import,unused-wildcard-import
+from dvrip import DVRIP_PORT
+from dvrip.io import DVRIPClient  # pylint: disable=wildcard-import,unused-wildcard-import
 
 
 import dvrip.packet
@@ -22,8 +23,8 @@ def _write(file, data, _write=dvrip.packet._write):  # pylint: disable=protected
 dvrip.packet._write = _write  # pylint: disable=protected-access
 
 
-conn = Client(Socket(AF_INET, SOCK_STREAM))
-conn.connect((argv[1], 34567), argv[2], argv[3])
+conn = DVRIPClient(Socket(AF_INET, SOCK_STREAM))
+conn.connect((argv[1], DVRIP_PORT), argv[2], argv[3])
 print(conn.systeminfo())
 print(conn.storageinfo())
 print(conn.time(conn.time() - timedelta(seconds=0)))
