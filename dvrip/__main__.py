@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from datetime import datetime
 from getopt import GetoptError, getopt
 from getpass import getpass
 from os import environ
@@ -10,6 +11,8 @@ from sys import argv, executable, exit, stderr, stdout  # pylint: disable=redefi
 from typing import List, NoReturn, TextIO
 from .errors import DVRIPDecodeError, DVRIPRequestError
 from .io import DVRIPClient
+from .message import EPOCH, RESOLUTION
+from .search import FileType
 
 try:
 	# pylint: disable=ungrouped-imports
@@ -133,10 +136,75 @@ def run_time(conn: DVRIPClient, args: List[str]) -> None:
 	print((conn.time(time) if args else conn.time()).isoformat())
 
 
+def find_usage() -> NoReturn:
+	print('Usage: {} ... time [-liv] [-s START] [-e END] -c CHANNEL')
+	exit(EX_USAGE)
+
+
+def run_find(conn: DVRIPClient, args: List[str]) -> None:  # pylint: disable=too-many-branches
+	from dateparser import parse as dateparse  # type: ignore
+
+	try:
+		opts, args = getopt(args, 'livs:e:c:')
+	except GetoptError:
+		find_usage()
+	if args:
+		find_usage()
+
+	long = False
+	filetype, start, end, channel = None, None, None, None
+	for opt, arg in opts:
+		if opt == '-l':
+			long = True
+		if opt == '-i':
+			if filetype is not None:
+				find_usage()
+			filetype = FileType.IMAGE
+		if opt == '-v':
+			if filetype is not None:
+				find_usage()
+			filetype = FileType.VIDEO
+		if opt == '-s':
+			start = dateparse(arg)
+			if start is None:
+				find_usage()
+		if opt == '-e':
+			end = dateparse(arg)
+			if end is None:
+				find_usage()
+		if opt == '-c':
+			try:
+				channel = int(arg, base=0)
+			except ValueError:
+				find_usage()
+	if filetype is None or channel is None:
+		find_usage()
+	if start is None:
+		start = EPOCH + RESOLUTION
+	if end is None:
+		end = datetime.now()
+
+	for file in conn.search(start=start,
+	                        end=end,
+	                        channel=channel,
+	                        type=filetype):
+		if long:
+			print('{} {} {} {} {:7}K {}'
+			      .format(file.disk, file.part,
+			              file.start.isoformat(),
+			              file.end.isoformat(),
+			              file.length,
+			              file.name))
+		else:
+			print(file.name)
+
+
 def usage(code: int = EX_USAGE, file: TextIO = stderr) -> NoReturn:
 	print('Usage: {} [-p PORT] [-u USERNAME] HOST COMMAND ...'
 	      .format(prog()),
-	      file=file, flush=True)
+	      file=file)
+	print(' where COMMAND is one of info, find, reboot, or time',
+	      file=file)
 	exit(code)
 
 
@@ -170,15 +238,21 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 		except EOFError:
 			exit(EX_IOERR)
 
-	if command == 'reboot':
-		conn = connect(host, port, username, password)
-		conn.reboot()
-	elif command == 'info':
+	if command == 'info':
 		conn = connect(host, port, username, password)
 		try:
 			run_info(conn, args)
 		finally:
 			conn.logout()
+	elif command == 'find':
+		conn = connect(host, port, username, password)
+		try:
+			run_find(conn, args)
+		finally:
+			conn.logout()
+	elif command == 'reboot':
+		conn = connect(host, port, username, password)
+		conn.reboot()
 	elif command == 'time':
 		conn = connect(host, port, username, password)
 		try:

@@ -1,8 +1,9 @@
 from .errors import DVRIPDecodeError, DVRIPRequestError
 from .info import GetInfo, Info
 from .login import ClientLogin, ClientLogout, Hash
-from .message import Session
+from .message import Session, Status
 from .packet import Packet
+from .search import GetFile, FileQuery
 from .operation import GetTime, Machine, MachineOperation, Operation, \
                        PerformOperation
 
@@ -115,6 +116,28 @@ class DVRIPClient(DVRIPConnection):
 		    session=self.session))
 		self.socket.close()  # FIXME reset?
 		self.socket = self.file = self.session = None
+
+	def search(self, start, **kwargs):
+		last = None
+		while True:
+			reply = self.request(GetFile(
+				     session=self.session,
+				     filequery=FileQuery(start=start,
+				                         **kwargs)))
+			if reply.files is NotImplemented:
+				return
+			drop = True
+			for file in reply.files:
+				if file == last:
+					drop = False
+				elif last is None or not drop:
+					yield file
+			if (reply.status == Status.SRCHCOMP or
+			    not reply.files or
+			    reply.files[-1] == last):
+				return
+			last  = reply.files[-1]
+			start = last.start
 
 
 class DVRIPServer(DVRIPConnection):

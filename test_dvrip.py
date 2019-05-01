@@ -221,12 +221,11 @@ def test_ClientLogin_topackets(session):
 	                       service='DVRIP-Web')
 	                      .topackets(session, 0))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
-	                      b'\x00\x00\x00\x00\xE8\x03\x5F\x00\x00\x00'
+	                      b'\x00\x00\x00\x00\xE8\x03\x5D\x00\x00\x00'
 	                      b'{"UserName": "admin", '
 	                      b'"PassWord": "tlJwpbo6", '
 	                      b'"EncryptType": "MD5", '
-	                      b'"LoginType": "DVRIP-Web"}'
-	                      b'\x0A\x00')
+	                      b'"LoginType": "DVRIP-Web"}')
 
 def test_ClientLogin_topackets_chunked(session):
 	p, q = tuple(ClientLogin(username='a'*16384,
@@ -238,11 +237,11 @@ def test_ClientLogin_topackets_chunked(session):
 	                      b'\x00\x00\x02\x00\xE8\x03\x00\x40\x00\x00'
 	                      b'{"UserName": "' + b'a' * (16384 - 14))
 	assert (q.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
-	                      b'\x00\x00\x02\x01\xE8\x03\x5A\x00\x00\x00' +
+	                      b'\x00\x00\x02\x01\xE8\x03\x58\x00\x00\x00' +
 	                      b'a' * 14 + b'", '
 	                      b'"PassWord": "tlJwpbo6", '
 	                      b'"EncryptType": "MD5", '
-	                      b'"LoginType": "DVRIP-Web"}\x0A\x00')
+	                      b'"LoginType": "DVRIP-Web"}')
 
 def test_ClientLogin_frompackets_invalid():
 	packet = p = Packet(0x57, 0, 1000,
@@ -256,7 +255,7 @@ def test_ClientLogin_frompackets_invalid():
 
 def test_ClientLoginReply_frompackets():
 	chunks = [b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00',
-	          b'\x00\x00\x00\x00\xe9\x03\x96\x00\x00\x00'
+	          b'\x00\x00\x00\x00\xE9\x03\x96\x00\x00\x00'
 	          b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	          b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	          b'"ExtraChannel" : 0, "Ret" : 100, '
@@ -368,9 +367,8 @@ def test_ControlFilter_accept_invalid_overlap():
 def test_ClientLogout_topackets(session):
 	p, = (ClientLogout(session=session).topackets(session, 0))
 	assert p.encode() == (b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
-	                      b'\x00\x00\x00\x00\xEA\x03\x29\x00\x00\x00'
-	                      b'{"Name": "", "SessionID": "0x00000057"}'
-	                      b'\x0A\x00')
+	                      b'\x00\x00\x00\x00\xEA\x03\x27\x00\x00\x00'
+	                      b'{"Name": "", "SessionID": "0x00000057"}')
 
 def test_ClientLogoutReply_accept():
 	data = (b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'

@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum, unique
 from io import RawIOBase
 from json import dumps, load
@@ -26,11 +26,12 @@ class _ChunkReader(RawIOBase):
 		chunk = self.chunks[-1]
 		assert chunk
 		buffer[:len(chunk)] = chunk[:len(buffer)]
-		if len(chunk) > len(buffer):
+		if len(chunk) > len(buffer):  # pylint: disable=no-else-return
 			self.chunks[-1] = chunk[len(buffer):]
+			return len(buffer)
 		else:
 			self.chunks.pop()
-		return len(chunk)
+			return len(chunk)
 
 
 def _hex_for_json(value: int) -> object:
@@ -46,10 +47,11 @@ def _json_to_hex(datum: object) -> int:
 hextype = (_json_to_hex, _hex_for_json)
 
 
-_DTFORMAT = '%Y-%m-%d %H:%M:%S'
-_NOSTRING = '0000-00-00 00:00:00'
-_EPSTRING = '2000-00-00 00:00:00'
-EPOCH     = datetime(2000, 1, 1, 0, 0, 0)
+_DTFORMAT  = '%Y-%m-%d %H:%M:%S'
+_NOSTRING  = '0000-00-00 00:00:00'
+_EPSTRING  = '2000-00-00 00:00:00'
+EPOCH      = datetime(2000, 1, 1, 0, 0, 0)
+RESOLUTION = timedelta(seconds=1)
 
 def _datetime_for_json(value: Optional[datetime]) -> object:
 	if value is None:
@@ -201,7 +203,7 @@ class ControlMessage(Value):
 
 	def chunks(self):
 		size = Packet.MAXLEN  # FIXME Don't mention Packet explicitly?
-		json = dumps(self.for_json()).encode('ascii') + b'\x0A\x00'
+		json = dumps(self.for_json()).encode('ascii')
 		return [json[i:i+size] for i in range(0, len(json), size)]
 
 	def topackets(self, session, number):
@@ -222,8 +224,7 @@ class ControlMessage(Value):
 		if not chunks:
 			raise DVRIPDecodeError('no data in DVRIP packet')
 		chunks[-1] = chunks[-1].rstrip(b'\x00\\')
-		return cls.json_to(load(_ChunkReader(chunks),
-		                        encoding='latin-1'))
+		return cls.json_to(load(_ChunkReader(chunks)))
 
 	@classmethod
 	def frompackets(cls, packets):
