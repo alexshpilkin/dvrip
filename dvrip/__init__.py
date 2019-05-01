@@ -4,6 +4,7 @@ from .info import *
 from .login import *
 from .message import *
 from .packet import *
+from .time import *
 
 from ._version import version as __version__
 __version_info__ = (int(n) for n in __version__.split('.')[:3])  # :3
@@ -99,6 +100,12 @@ class Client(Connection):
 		if reply.activity is NotImplemented:
 			raise DVRIPDecodeError('invalid system info reply')
 		return reply.activity
+
+	def time(self):
+		reply = self.request(GetTime(session=self.session))
+		if reply.time is NotImplemented:
+			return None
+		return reply.time
 
 
 class Server(Connection):

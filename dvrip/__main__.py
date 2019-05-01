@@ -100,6 +100,7 @@ def run_info(conn: Client, args: List[str]) -> None:  # pylint: disable=too-many
 		      (' recording' if chan.recording else ''))
 
 	line = []
+	line.append(conn.time().isoformat())
 	minutes = info.uptime
 	hours, minutes = divmod(minutes, 60)
 	days, hours = divmod(hours, 24)
@@ -112,7 +113,7 @@ def run_info(conn: Client, args: List[str]) -> None:  # pylint: disable=too-many
 		value = getattr(actv.triggers, attr)
 		if value:
 			line.append('{} {}'.format(attr.rstrip('_'), value))
-	if len(line) <= 2:
+	if len(line) <= 3:
 		line.append('none')
 	print(' '.join(line))  # status line
 
