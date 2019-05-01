@@ -4,7 +4,7 @@ from .info import *
 from .login import *
 from .message import *
 from .packet import *
-from .time import *
+from .operation import *
 
 from ._version import version as __version__
 __version_info__ = (int(n) for n in __version__.split('.')[:3])  # :3
@@ -17,7 +17,7 @@ class Connection(object):
 
 	def __init__(self, socket, session=None, number=0):
 		self.socket   = socket
-		self.file     = socket.makefile('rwb')
+		self.file     = socket.makefile('rwb', buffering=0)
 		self.session  = session
 		self.number   = number
 
@@ -25,7 +25,6 @@ class Connection(object):
 		file = self.file
 		for packet in message.topackets(self.session, number):
 			packet.dump(file)
-		file.flush()
 
 	def recv(self, filter):  # pylint: disable=redefined-builtin
 		file = self.file
@@ -101,11 +100,24 @@ class Client(Connection):
 			raise DVRIPDecodeError('invalid system info reply')
 		return reply.activity
 
-	def time(self):
+	def time(self, time=None):
 		reply = self.request(GetTime(session=self.session))
-		if reply.time is NotImplemented:
+		if time is not None:
+			self.request(PerformOperation(
+			    command=Operation.SETTIME,
+			    session=self.session,
+			    settime=time))
+		if reply.gettime is NotImplemented:
 			return None
-		return reply.time
+		return reply.gettime
+
+	def reboot(self):
+		self.request(PerformOperation(
+		    command=Operation.MACHINE,
+		    machine=MachineOperation(action=Machine.REBOOT),
+		    session=self.session))
+		self.socket.close()  # FIXME reset?
+		self.socket = self.file = self.session = None
 
 
 class Server(Connection):

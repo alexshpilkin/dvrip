@@ -218,6 +218,9 @@ setup(
 	install_requires=[
 		'typing_inspect >=0.4, <0.5',
 	],
+	extras_require={
+		'dvr-time': ['dateparser'],
+	},
 	tests_require=[
 		'hypothesis',
 		'mock',

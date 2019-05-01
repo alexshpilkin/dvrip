@@ -27,11 +27,13 @@ def prog():
 	        if name in {'__main__.py', '-c'}
 	        else name)
 
+
 def ioerr(e, code=EX_IOERR):
 	message = ('{}: {}'.format(e.filename, e.strerror) \
 	           if e.filename is not None else e.strerror)
 	print(message, file=stderr)
 	exit(code)
+
 
 def connect(host: str, port: str, user: str, password: str) -> Client:
 	try:
@@ -61,10 +63,11 @@ def connect(host: str, port: str, user: str, password: str) -> Client:
 
 	return conn
 
+
 def run_info(conn: Client, args: List[str]) -> None:  # pylint: disable=too-many-branches,too-many-locals
 	if args:
 		fail = tuple(args) != ('-h',)
-		print('usage: {} ... info'.format(prog()),
+		print('Usage: {} ... info'.format(prog()),
 		      file=stderr if fail else stdout)
 		exit(EX_USAGE if fail else 0)
 
@@ -117,13 +120,26 @@ def run_info(conn: Client, args: List[str]) -> None:  # pylint: disable=too-many
 		line.append('none')
 	print(' '.join(line))  # status line
 
+
+def run_time(conn: Client, args: List[str]) -> None:
+	from dateparser import parse as dateparse  # type: ignore
+
+	time = dateparse(args[0] if args else '1970-01-01')
+	if len(args) > 2 or time is None or time.tzinfo is not None:
+		print('Usage: {} ... time [TIME]'.format(prog()))
+		exit(EX_USAGE)
+
+	print((conn.time(time) if args else conn.time()).isoformat())
+
+
 def usage(code: int = EX_USAGE, file: TextIO = stderr) -> NoReturn:
-	print('usage: {} [-p PORT] [-u USERNAME] HOST COMMAND ...'
+	print('Usage: {} [-p PORT] [-u USERNAME] HOST COMMAND ...'
 	      .format(prog()),
 	      file=file, flush=True)
 	exit(code)
 
-def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-default-value
+
+def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-default-value,too-many-branches
 	try:
 		opts, args = getopt(args, 'hp:u:')
 	except GetoptError:
@@ -131,7 +147,7 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 	if len(args) < 2:
 		usage()
 	host, command, *args = args
-	if command != 'info':
+	if not all(c.isalnum() or c == '-' for c in command):
 		usage()
 
 	port = environ.get('DVR_PORT', '34567')
@@ -153,11 +169,24 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 		except EOFError:
 			exit(EX_IOERR)
 
-	conn = connect(host, port, username, password)
-	try:
-		run_info(conn, args)
-	finally:
-		conn.logout()
+	if command == 'reboot':
+		conn = connect(host, port, username, password)
+		conn.reboot()
+	elif command == 'info':
+		conn = connect(host, port, username, password)
+		try:
+			run_info(conn, args)
+		finally:
+			conn.logout()
+	elif command == 'time':
+		conn = connect(host, port, username, password)
+		try:
+			run_time(conn, args)
+		finally:
+			conn.logout()
+	else:
+		usage()
+
 
 if __name__ == '__main__':
 	run()

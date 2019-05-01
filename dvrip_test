@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
+from datetime import timedelta
 from socket import AF_INET, SOCK_STREAM, socket as Socket
-from sys    import argv, stderr
+from sys import argv, stderr
 from dvrip  import *  # pylint: disable=wildcard-import,unused-wildcard-import
 
 
@@ -25,5 +26,6 @@ conn = Client(Socket(AF_INET, SOCK_STREAM))
 conn.connect((argv[1], 34567), argv[2], argv[3])
 print(conn.systeminfo())
 print(conn.storageinfo())
-print(conn.time())
+print(conn.time(conn.time() - timedelta(seconds=0)))
+#conn.reboot()
 conn.logout()

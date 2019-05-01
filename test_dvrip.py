@@ -458,5 +458,5 @@ def test_Info_forjson(cmd):
 @given(sampled_from(list(Info.__members__.values())))
 def test_info_jsonto(cmd):
 	assert Info.json_to(cmd.value) == cmd
-	with raises(DVRIPDecodeError, match='not a known info command'):
+	with raises(DVRIPDecodeError, match='not a known'):
 		Info.json_to('SPAM')

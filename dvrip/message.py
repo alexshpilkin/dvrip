@@ -10,7 +10,7 @@ from .packet import Packet
 from .typing import Value, for_json, json_to
 
 __all__ = ('hextype', 'Session', 'Status', 'ControlMessage', 'ControlFilter',
-           'ControlRequest')
+           'ControlRequest', 'Choice')
 
 
 class _ChunkReader(RawIOBase):
@@ -276,3 +276,21 @@ class ControlRequest(ControlMessage):
 	@classmethod
 	def replies(cls, number):
 		return ControlFilter(cls.reply, number)
+
+
+class Choice(Enum):
+	def __repr__(self):
+		return '{}.{}'.format(type(self).__qualname__, self.name)
+
+	def __str__(self):
+		return self.value
+
+	def for_json(self):
+		return for_json(self.value)
+
+	@classmethod
+	def json_to(cls, datum):
+		try:
+			return cls(json_to(str)(datum))
+		except ValueError:
+			raise DVRIPDecodeError('not a known choice')

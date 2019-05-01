@@ -1,8 +1,7 @@
 from datetime import datetime
-from enum     import Enum, unique
+from enum     import unique
 from typing   import List, Optional
-from .errors  import DVRIPDecodeError
-from .message import ControlMessage, ControlRequest, Session, Status, \
+from .message import Choice, ControlMessage, ControlRequest, Session, Status, \
                      datetimetype, hextype
 from .typing  import Object, absentmember, for_json, json_to, member, \
                      optionalmember
@@ -25,23 +24,7 @@ _versiontype = (_json_to_version, _version_for_json)
 
 
 @unique
-class Info(Enum):
-	def __repr__(self):
-		return '{}.{}'.format(type(self).__qualname__, self.name)
-
-	def __str__(self):
-		return self.value
-
-	def for_json(self):
-		return for_json(self.value)
-
-	@classmethod
-	def json_to(cls, datum):
-		try:
-			return cls(json_to(str)(datum))
-		except ValueError:
-			raise DVRIPDecodeError('not a known info command')
-
+class Info(Choice):
 	SYSTEM   = 'SystemInfo'
 	STORAGE  = 'StorageInfo'
 	ACTIVITY = 'WorkState'
