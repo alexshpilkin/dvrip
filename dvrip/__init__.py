@@ -44,11 +44,10 @@ class Connection(object):
 
 
 class Client(Connection):
-	__slots__ = ('username', '_logininfo')
+	__slots__ = ('_logininfo',)
 
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		self.username   = None
 		self._logininfo = None
 
 	def login(self, username, password, hash=Hash.XMMD5,  # pylint: disable=redefined-builtin
@@ -63,13 +62,11 @@ class Client(Connection):
 		reply = self.request(request)
 		DVRIPRequestError.signal(request, reply)
 		self.session    = reply.session
-		self.username   = username
 		self._logininfo = reply
 
 	def logout(self):
 		assert self.session is not None
-		request = ClientLogout(username=self.username,
-		                       session=self.session)
+		request = ClientLogout(session=self.session)
 		self.request(request)
 		self.session = None
 
@@ -78,7 +75,7 @@ class Client(Connection):
 		return self.login(*args, **named)
 
 	def systeminfo(self):
-		reply = self.request(GetInfo(category=Info.SYSTEM,
+		reply = self.request(GetInfo(command=Info.SYSTEM,
 		                             session=self.session))
 		if reply.system is NotImplemented:
 			raise DVRIPDecodeError('invalid system info reply')
@@ -86,14 +83,14 @@ class Client(Connection):
 		return reply.system
 
 	def storageinfo(self):
-		reply = self.request(GetInfo(category=Info.STORAGE,
+		reply = self.request(GetInfo(command=Info.STORAGE,
 		                             session=self.session))
 		if reply.storage is NotImplemented:
 			raise DVRIPDecodeError('invalid system info reply')
 		return reply.storage
 
 	def activityinfo(self):
-		reply = self.request(GetInfo(category=Info.ACTIVITY,
+		reply = self.request(GetInfo(command=Info.ACTIVITY,
 		                             session=self.session))
 		if reply.activity is NotImplemented:
 			raise DVRIPDecodeError('invalid system info reply')

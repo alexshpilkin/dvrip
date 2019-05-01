@@ -40,7 +40,7 @@ class Info(Enum):
 		try:
 			return cls(json_to(str)(datum))
 		except ValueError:
-			raise DVRIPDecodeError('not a known info category')
+			raise DVRIPDecodeError('not a known info command')
 
 	SYSTEM   = 'SystemInfo'
 	STORAGE  = 'StorageInfo'
@@ -114,7 +114,7 @@ class GetInfoReply(Object, ControlMessage):
 	type = 1021
 
 	status:   member[Status]  = member('Ret')
-	category: member[Info]    = member('Name')
+	command:  member[Info]    = member('Name')
 	session:  member[Session] = member('SessionID')
 	system:   optionalmember[SystemInfo]   = optionalmember('SystemInfo')
 	storage:  optionalmember[StorageInfo]  = optionalmember('StorageInfo')
@@ -127,5 +127,5 @@ class GetInfo(Object, ControlRequest):
 	type  = 1020
 	reply = GetInfoReply
 
-	category: member[Info]    = member('Name')
-	session:  member[Session] = member('SessionID')
+	command: member[Info]    = member('Name')
+	session: member[Session] = member('SessionID')

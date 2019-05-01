@@ -24,6 +24,6 @@ dvrip.packet._write = _write  # pylint: disable=protected-access
 conn = Client(Socket(AF_INET, SOCK_STREAM))
 conn.connect((argv[1], 34567), argv[2], argv[3])
 print(conn.systeminfo())
-print(conn.request(GetInfo(session=conn.session, category=Info.STORAGE))
+print(conn.request(GetInfo(session=conn.session, command=Info.STORAGE))
           .storage)
 conn.logout()

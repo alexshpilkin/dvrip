@@ -3,7 +3,8 @@ from hashlib  import md5 as MD5
 from string   import ascii_lowercase, ascii_uppercase, digits
 from .message import ControlMessage, ControlRequest, Session, Status
 from .errors  import DVRIPDecodeError
-from .typing  import Object, for_json, json_to, member, optionalmember
+from .typing  import Object, fixedmember, for_json, json_to, member, \
+                     optionalmember
 
 __all__ = ('xmmd5', 'Hash', 'ClientLoginReply', 'ClientLogin',
            'ClientLogoutReply', 'ClientLogout')
@@ -72,15 +73,14 @@ class ClientLogin(Object, ControlRequest):
 class ClientLogoutReply(Object, ControlMessage):
 	type = 1003
 
-	status:   member[Status]  = member('Ret')
-	username: member[str]     = member('Name')
-	session:  member[Session] = member('SessionID')
+	status:  member[Status]  = member('Ret')
+	command: fixedmember     = fixedmember('Name', '')
+	session: member[Session] = member('SessionID')
 
 
 class ClientLogout(Object, ControlRequest):
 	type  = 1002
 	reply = ClientLogoutReply
 
-	# FIXME 'username' unused?
-	username: member[str]     = member('Name')
-	session:  member[Session] = member('SessionID')
+	command: fixedmember     = fixedmember('Name', '')
+	session: member[Session] = member('SessionID')

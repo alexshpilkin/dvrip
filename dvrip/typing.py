@@ -214,9 +214,36 @@ def _compose(*args: Callable[[Any], Any]) -> Callable[[Any], Any]:
 	return env['composition']
 
 
-class absentmember(Member[Union['NotImplemented', T]]):  # see python/mypy#4791
-	default = NotImplemented
-	key     = NotImplemented
+class fixedmember(Member[object]):
+	__slots__ = ('key', 'default')
+
+	def __init__(self, key: str, datum: object) -> None:
+		self.key     = key
+		self.default = datum
+
+	def __get__(self,
+	            obj: 'Object',
+	            cls: type
+	           ) -> Union['fixedmember', object]:
+		if obj is None:
+			return self
+		return self.default
+
+	def __set__(self, obj: 'Object', value: object) -> None:
+		if value != self.default:
+			raise ValueError('not the fixed value')
+
+	def push(self, push: Callable[[str, object], None], value: object) -> None:
+		push(self.key, self.default)
+
+	def pop(self, pop: Callable[[str], object]) -> object:
+		if pop(self.key) != self.default:
+			raise DVRIPDecodeError('not the fixed value')
+		return self.default
+
+
+class AttributeMember(Member[T]):
+	__slots__ = ()
 
 	def __get__(self, obj: 'Object', _type: type) -> Union['member[T]', T]:
 		if obj is None:
@@ -226,17 +253,24 @@ class absentmember(Member[Union['NotImplemented', T]]):  # see python/mypy#4791
 	def __set__(self, obj: 'Object', value: T) -> None:
 		return setattr(obj._values_, self.name, value)  # pylint: disable=protected-access
 
-	def push(self, push, value):
+
+# NotImplemented is not allowed as a type, see python/mypy#4791
+class absentmember(AttributeMember[Union['NotImplemented', T]]):
+	__slots__ = ()
+	default   = NotImplemented
+
+	def push(self, push, value):  # pylint: disable=no-self-use
 		if value is not NotImplemented:
 			raise ValueError('value provided for absent member {!r}'
 			                 .format(self.name))
 
-	def pop(self, pop):
+	def pop(self, pop):  # pylint: disable=no-self-use
 		return NotImplemented
 
 
-class member(Member[T]):
-	__slots__ = ('key', 'pipe', 'default', 'json_to', 'for_json')
+class member(AttributeMember[T]):
+	__slots__ = ('key', 'pipe', 'json_to', 'for_json')
+	# Pylint incorrectly reports assignments below due to PyCQA/pylint#2807
 
 	def __init__(self,
 	             key:    str,
@@ -246,7 +280,7 @@ class member(Member[T]):
 	             *args:  Tuple[Callable[[Any], Any],
 	                           Callable[[Any], Any]],
 	            ) -> None:
-		self.key   = key
+		self.key = key
 		if conv is not None:
 			self.pipe = (conv, *args)
 		else:
@@ -268,14 +302,6 @@ class member(Member[T]):
 
 		self.json_to  = _compose(*(p[0] for p in self.pipe))
 		self.for_json = _compose(*(p[1] for p in reversed(self.pipe)))
-
-	def __get__(self, obj: 'Object', _type: type) -> Union['member[T]', T]:
-		if obj is None:
-			return self
-		return getattr(obj._values_, self.name)  # pylint: disable=protected-access
-
-	def __set__(self, obj: 'Object', value: T) -> None:
-		return setattr(obj._values_, self.name, value)  # pylint: disable=protected-access
 
 	def push(self, push, value):
 		super().push(push, value)
@@ -314,9 +340,7 @@ class ObjectMeta(ABCMeta):
 	def __new__(cls, name, bases, namespace, **kwargs) -> 'ObjectMeta':
 		names: MutableMapping[str, Member] = OrderedDict()
 		for mname, value in namespace.items():
-			if (_isunder(mname) or
-			    not isinstance(value, Member) or
-			    not hasattr(value, 'key')):
+			if _isunder(mname) or not isinstance(value, Member):
 				# Pytest-cov mistakenly thinks this branch is
 				# not taken.  Place a print statement here to
 				# verify.

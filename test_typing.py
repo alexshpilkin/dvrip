@@ -9,8 +9,8 @@ from typing import Callable, Dict, List, SupportsBytes, Type, TypeVar, \
 
 from dvrip.errors import DVRIPDecodeError
 from dvrip.typing import EnumValue, Member, Object, Value, absentmember, \
-                         _compose, for_json, json_to, jsontype, member, \
-                         optionalmember
+                         _compose, fixedmember, for_json, json_to, jsontype, \
+                         member, optionalmember
 
 
 def test_forjson():
@@ -196,6 +196,27 @@ def tohex(value: SupportsBytes) -> object:
 def hextext():
 	return (text(sampled_from('0123456789abcdef'))
 	            .filter(lambda s: len(s) % 2 == 0))
+
+class FixedExample(Object):
+	mint: fixedmember = fixedmember('Int', 57)
+
+def test_fixedmember_get():
+	assert FixedExample().mint == 57
+
+def test_fixedmember_set():
+	obj = FixedExample()
+	obj.mint = 57
+	with raises(ValueError, match='not the fixed value'):
+		obj.mint = 58
+	assert obj.mint == 57
+
+def test_fixedmember_forjson():
+	assert FixedExample().for_json() == {'Int': 57}
+
+def test_fixedmember_jsonto():
+	assert FixedExample.json_to({'Int': 57}) == FixedExample()
+	with raises(DVRIPDecodeError, match='not the fixed value'):
+		FixedExample.json_to({'Int': 58})
 
 class AbsentExample(Object):
 	mint: absentmember[int] = absentmember()

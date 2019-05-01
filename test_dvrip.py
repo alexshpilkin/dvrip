@@ -359,41 +359,37 @@ def test_ControlFilter_accept_invalid_overlap():
 		replies.accept(q)
 
 def test_ClientLogout_topackets(session):
-	p, = (ClientLogout(username='admin', session=session)
-	                  .topackets(session, 0))
+	p, = (ClientLogout(session=session).topackets(session, 0))
 	assert p.encode() == (b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
-	                      b'\x00\x00\x00\x00\xEA\x03\x2E\x00\x00\x00'
-	                      b'{"Name": "admin", "SessionID": "0x00000057"}'
+	                      b'\x00\x00\x00\x00\xEA\x03\x29\x00\x00\x00'
+	                      b'{"Name": "", "SessionID": "0x00000057"}'
 	                      b'\x0A\x00')
 
 def test_ClientLogoutReply_accept():
 	data = (b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	        b'\x00\x00\x00\x00\xeb\x03\x3A\x00\x00\x00'
 	        b'{ "Name" : "", "Ret" : 100, '
-	        b'"SessionID" : "0x00000057" }\x0A\x00')
+	        b'"SessionID" : "0x00000057" }'
+	        b'\x0A\x00')
 	replies = ClientLogout.replies(0)
 	(n, m), = replies.accept(Packet.decode(data))
 	assert n == 0
-	assert (m.username == "" and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
-	        m.session == Session(0x57))
+	assert m.status == Status(100) and m.session == Session(0x57)
 
 def test_Client_logout(capsys, session, clinoconn, clitosrv, srvtocli):
 	p, = (ClientLogoutReply(status=Status.OK,
-	                        username='admin',
 	                        session=session)
 	                       .topackets(session, 2))
 	p.dump(srvtocli)
 	p, = (ClientLogoutReply(status=Status.OK,
-	                        username='admin',
 	                        session=session)
 	                       .topackets(session, 1))
 	p.dump(srvtocli)
 	srvtocli.seek(0)
 
-	clinoconn.username = 'admin'
 	clinoconn.logout()
 	clitosrv.seek(0); m = ClientLogout.frompackets([Packet.load(clitosrv)])
-	assert m == ClientLogout(username='admin', session=session)
+	assert m == ClientLogout(session=session)
 	out1, out2 = capsys.readouterr().out.split('\n')
 	assert out1.startswith('unrecognized packet: ') and out2 == ''
 
@@ -448,19 +444,19 @@ def test_version():
 	assert _versiontype == (_json_to_version, _version_for_json)
 
 @given(sampled_from(list(Info.__members__.values())))
-def test_Info_repr(cat):
-	assert repr(cat) == 'Info.{}'.format(cat.name)
+def test_Info_repr(cmd):
+	assert repr(cmd) == 'Info.{}'.format(cmd.name)
 
 @given(sampled_from(list(Info.__members__.values())))
-def test_Info_str(cat):
-	assert str(cat) == cat.value
+def test_Info_str(cmd):
+	assert str(cmd) == cmd.value
 
 @given(sampled_from(list(Info.__members__.values())))
-def test_Info_forjson(cat):
-	assert cat.for_json() == cat.value
+def test_Info_forjson(cmd):
+	assert cmd.for_json() == cmd.value
 
 @given(sampled_from(list(Info.__members__.values())))
-def test_info_jsonto(cat):
-	assert Info.json_to(cat.value) == cat
-	with raises(DVRIPDecodeError, match='not a known info category'):
+def test_info_jsonto(cmd):
+	assert Info.json_to(cmd.value) == cmd
+	with raises(DVRIPDecodeError, match='not a known info command'):
 		Info.json_to('SPAM')
