@@ -5,11 +5,14 @@ from .errors import DVRIPDecodeError, DVRIPRequestError
 from .info import GetInfo, Info
 from .login import ClientLogin, ClientLogout, Hash
 from .message import EPOCH, Session, Status
-from .packet import Packet
-from .search import GetFile, FileQuery
+from .monitor import DoMonitor, Monitor, MonitorAction, MonitorClaim, \
+                     MonitorParams
 from .operation import GetTime, Machine, MachineOperation, Operation, \
                        PerformOperation
-from .playback import Action, Claim, DoPlayback, Params, Playback
+from .packet import Packet
+from .playback import DoPlayback, Playback, PlaybackAction, PlaybackClaim, \
+                      PlaybackParams
+from .search import GetFile, FileQuery
 
 __all__ = ('DVRIPConnection', 'DVRIPClient', 'DVRIPServer')
 
@@ -49,7 +52,7 @@ class DVRIPConnection(object):
 		DVRIPRequestError.signal(request, reply)
 		return reply
 
-	def stream(self, socket, claim, request):
+	def reader(self, socket, claim, request):
 		data = DVRIPConnection(socket, self.session)
 		data.send(data.number, claim)
 		self.request(request)
@@ -180,13 +183,21 @@ class DVRIPClient(DVRIPConnection):
 			start = last.start
 
 	def download(self, socket, name):
-		pb = Playback(action=Action.DOWNLOADSTART,
+		pb = Playback(action=PlaybackAction.DOWNLOADSTART,
 		              start=EPOCH,
 		              end=datetime(9999, 12, 31, 23, 59, 59),
-		              params=Params(name=name))
-		claim = Claim(session=self.session, playback=pb)
+		              params=PlaybackParams(name=name))
+		claim = PlaybackClaim(session=self.session, playback=pb)
 		request = DoPlayback(session=self.session, playback=pb)
-		return self.stream(socket, claim, request)
+		return self.reader(socket, claim, request)
+
+	def monitor(self, socket, channel, stream):
+		monitor = Monitor(action=MonitorAction.START,
+		                  params=MonitorParams(channel=channel,
+		                                       stream=stream))
+		claim = MonitorClaim(session=self.session, monitor=monitor)
+		request = DoMonitor(session=self.session, monitor=monitor)
+		return self.reader(socket, claim, request)
 
 
 class DVRIPServer(DVRIPConnection):

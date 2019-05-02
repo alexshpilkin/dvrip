@@ -12,21 +12,22 @@ class DoPlaybackReply(Object, ControlMessage):
 	command: fixedmember     = fixedmember('Name', 'OPPlayBack')
 	session: member[Session] = member('SessionID')
 
-class Action(Choice):
+
+class PlaybackAction(Choice):
 	CLAIM          = 'Claim'
 	_STREAMSTART   = 'Start'  # TODO
 	_STREAMSTOP    = 'Stop'   # TODO
 	DOWNLOADSTART = 'DownloadStart'
 	DOWNLOADSTOP  = 'DownloadStop'
 
-class Params(Object):
+class PlaybackParams(Object):
 	# TODO there are more
 	name:      member[str] = member('FileName')
 	transport: fixedmember = fixedmember('TransMode', 'TCP')  # TODO
 
 class Playback(Object):
-	action: member[Action] = member('Action')
-	params: member[Params] = member('Parameter')
+	action: member[PlaybackAction] = member('Action')
+	params: member[PlaybackParams] = member('Parameter')
 	start:  member[Optional[datetime]] = member('StartTime', datetimetype)
 	end:    member[Optional[datetime]] = member('EndTime', datetimetype)
 
@@ -39,10 +40,11 @@ class DoPlayback(Object, ControlRequest):
 	playback: member[Playback] = member('OPPlayBack')
 
 
-class ClaimReply(DoPlaybackReply):
+class PlaybackClaimReply(DoPlaybackReply):
 	type = 1425
 
-class Claim(DoPlayback):
-	type = 1424
-	data = 1426
-	reply = ClaimReply
+
+class PlaybackClaim(DoPlayback):
+	type  = 1424
+	reply = PlaybackClaimReply
+	data  = 1426

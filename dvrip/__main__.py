@@ -13,6 +13,7 @@ from typing import List, NoReturn, TextIO, Tuple
 from .errors import DVRIPDecodeError, DVRIPRequestError
 from .io import DVRIPClient
 from .message import EPOCH, RESOLUTION
+from .monitor import Stream
 from .search import FileType
 
 try:
@@ -146,7 +147,7 @@ def find_usage() -> NoReturn:
 
 def run_find(conn: DVRIPClient, args: List[str]) -> None:
 	from dateparser import parse as dateparse  # type: ignore
-	from humanize   import naturalsize
+	from humanize import naturalsize  # type: ignore
 
 	try:
 		opts, args = getopt(args, 'lhivs:e:c:')
@@ -206,15 +207,37 @@ def run_find(conn: DVRIPClient, args: List[str]) -> None:
 			print(file.name)
 
 
+def cat_usage() -> NoReturn:
+	print('Usage: {} ... cat {{NAME|CHANNEL}}'.format(prog()),
+	      file=stderr)
+	exit(EX_USAGE)
+
 def run_cat(conn: DVRIPClient, sock: Socket, args: List[str]) -> None:
 	if len(args) != 1:
-		print('Usage: {} ... cat FILENAME'.format(prog()),
-		      file=stderr)
-		exit(EX_USAGE)
+		cat_usage()
+
 	name, = args
+	if name.startswith('/'):
+		reader = lambda: conn.download(sock, name)
+	elif name.startswith('monitor:'):
+		if ';' not in name:
+			name += ';hd'
+		chanstr, strstr = name[len('monitor:'):].split(';', 1)
+		try:
+			channel = int(chanstr, base=0)
+		except ValueError:
+			cat_usage()
+		try:
+			stream = Stream[strstr.upper()]
+		except KeyError:
+			cat_usage()
+		reader = lambda: conn.monitor(sock, channel, stream)
 	try:
-		file = conn.download(sock, name)
-		copyfileobj(file, stdout.buffer)
+		file = reader()
+		try:
+			copyfileobj(file, stdout.buffer, length=256)
+		except (BrokenPipeError, KeyboardInterrupt):
+			pass
 	finally:
 		sock.close()
 

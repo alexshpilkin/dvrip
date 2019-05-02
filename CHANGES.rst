@@ -4,6 +4,9 @@ Changes
 Unreleased
 ----------
 
+* Live video from camera N can now be obtained by passing ``monitor:N``
+  to ``dvr cat``.  Append ``;hd`` or ``;sd`` to select the corresponding
+  stream, and mind the shell quoting.
 * Sizes are now displayed in GNU 'human-readable' format (2K, 31M, etc.)
   using ``humanize`` when ``dvr find`` is given the ``-h`` flag.
 

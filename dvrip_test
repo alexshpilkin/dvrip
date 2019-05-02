@@ -6,6 +6,7 @@ from sys import argv, stderr
 from dvrip import DVRIP_PORT
 from dvrip.io import DVRIPClient
 from dvrip.search import FileType
+from dvrip.monitor import *
 
 
 import dvrip.packet
@@ -13,8 +14,8 @@ import dvrip.packet
 
 def _read(file, length, _read=dvrip.packet._read):  # pylint: disable=protected-access
 	data = _read(file, length)
-	#print('recv', bytes(data) if data[:1].isascii() else data.hex(),
-	#      file=stderr, flush=True)
+	print('recv', bytes(data) if data[:1].isascii() else data.hex(),
+	      file=stderr, flush=True)
 	return data
 dvrip.packet._read = _read  # pylint: disable=protected-access
 
@@ -36,15 +37,24 @@ print(list(conn.search(start=now - timedelta(hours=5),
                        channel=0,
                        type=FileType.VIDEO)))
 
-name = '/idea0/2019-05-01/001/01.04.07-01.04.23[M][@15b7][0].h264'
+#name = '/idea0/2019-05-01/001/01.04.07-01.04.23[M][@15b7][0].h264'
 sock = Socket(AF_INET, SOCK_STREAM)
 sock.connect((argv[1], DVRIP_PORT))
-in_ = conn.download(sock, name)
+
+
+monitor = Monitor(action=MonitorAction.START,
+                  params=MonitorParams(channel=0,
+                                       stream=Stream.HD))
+claim = MonitorClaim(session=conn.session, monitor=monitor)
+request = DoMonitor(session=conn.session, monitor=monitor)
+in_ = conn.reader(sock, claim, request)
+
 with open('test.264', 'wb') as out:
 	while True:
-		chunk = in_.read()
+		chunk = in_.read(16)
 		if not chunk: break
 		out.write(chunk)
+		out.flush()
 
 #conn.reboot()
 conn.logout()
