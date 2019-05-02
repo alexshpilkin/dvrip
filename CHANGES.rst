@@ -4,10 +4,17 @@ Changes
 Unreleased
 ----------
 
-* Files can now be listed with ``dvr find`` and downloaded (to standard
-  output) with ``dvr cat``.
+* Sizes are now displayed in GNU 'human-readable' format (2K, 31M, etc.)
+  using ``humanize`` when ``dvr find`` is given the ``-h`` flag.
+
+0.0.2 (2019-05-02)
+------------------
+
+* Files can now be listed with ``dvr find`` (depends on ``dateparser``)
+  and downloaded (to standard output) with ``dvr cat``.
 * Device can now be rebooted with ``dvr reboot``.
-* System time can now be set using ``dvr time``, using ``dateparser``.
+* System time can now be set using ``dvr time`` (depends on
+  ``dateparser``).
 * The ``dvr info`` tool reports system time alongside uptime.
 * Connection classes are now in ``dvrip.io``.
 * The ``test_connect`` development script is renamed to ``dvrip_test``.

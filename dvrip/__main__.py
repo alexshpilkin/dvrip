@@ -146,19 +146,22 @@ def find_usage() -> NoReturn:
 
 def run_find(conn: DVRIPClient, args: List[str]) -> None:
 	from dateparser import parse as dateparse  # type: ignore
+	from humanize   import naturalsize
 
 	try:
-		opts, args = getopt(args, 'livs:e:c:')
+		opts, args = getopt(args, 'lhivs:e:c:')
 	except GetoptError:
 		find_usage()
 	if args:
 		find_usage()
 
-	long = False
+	long = human = False
 	filetype, start, end, channel = None, None, None, None
 	for opt, arg in opts:
 		if opt == '-l':
 			long = True
+		if opt == '-h':
+			human = True
 		if opt == '-i':
 			if filetype is not None:
 				find_usage()
@@ -192,11 +195,12 @@ def run_find(conn: DVRIPClient, args: List[str]) -> None:
 	                        channel=channel,
 	                        type=filetype):
 		if long:
-			print('{} {} {} {} {:7}K {}'
+			print('{} {} {} {} {:>8} {}'
 			      .format(file.disk, file.part,
 			              file.start.isoformat(),
 			              file.end.isoformat(),
-			              file.length,
+			              naturalsize(file.length*1024, gnu=True)
+			              if human else str(file.length) + 'K',
 			              file.name))
 		else:
 			print(file.name)

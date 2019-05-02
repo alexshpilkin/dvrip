@@ -219,7 +219,7 @@ setup(
 		'typing_inspect >=0.4, <0.5',
 	],
 	extras_require={
-		'dvr-find': ['dateparser'],
+		'dvr-find': ['dateparser', 'humanize'],
 		'dvr-time': ['dateparser'],
 	},
 	tests_require=[
