@@ -14,9 +14,12 @@ class DoPlaybackReply(Object, ControlMessage):
 
 
 class PlaybackAction(Choice):
-	CLAIM          = 'Claim'
-	_STREAMSTART   = 'Start'  # TODO
-	_STREAMSTOP    = 'Stop'   # TODO
+	CLAIM         = 'Claim'
+	START         = 'Start'
+	PAUSE         = 'Pause'
+	FAST          = 'Fast'
+	SLOW          = 'Slow'
+	STOP          = 'Stop'
 	DOWNLOADSTART = 'DownloadStart'
 	DOWNLOADSTOP  = 'DownloadStop'
 
