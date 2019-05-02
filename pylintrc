@@ -6,6 +6,7 @@ good-names=i,j,k
 
 [MESSAGES CONTROL]
 disable=
+	abstract-method,                  # W0223 -- fooled by C..Message.data
 	mixed-indentation,                # W0312 -- as intended
 	keyword-arg-before-vararg,        # W1113 -- as intended
 	invalid-name,                     # C0103 -- as intended

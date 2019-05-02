@@ -5,10 +5,11 @@ from getopt import GetoptError, getopt
 from getpass import getpass
 from os import environ
 from os.path import basename
+from shutil import copyfileobj
 from socket import AF_INET, SOCK_STREAM, socket as Socket, gethostbyname, \
                    getservbyname
 from sys import argv, executable, exit, stderr, stdout  # pylint: disable=redefined-builtin
-from typing import List, NoReturn, TextIO
+from typing import List, NoReturn, TextIO, Tuple
 from .errors import DVRIPDecodeError, DVRIPRequestError
 from .io import DVRIPClient
 from .message import EPOCH, RESOLUTION
@@ -23,6 +24,7 @@ except ImportError:  # BSD value  # pragma: no cover
 	EX_IOERR    = 74
 	EX_PROTOCOL = 76
 
+# pylint: disable=too-many-branches,too-many-locals,too-many-statements
 
 
 def prog():
@@ -39,7 +41,7 @@ def ioerr(e, code=EX_IOERR):
 	exit(code)
 
 
-def connect(host: str, port: str, user: str, password: str) -> DVRIPClient:
+def resolve(host: str, port: str):
 	try:
 		serv = int(port, base=0)
 	except ValueError:
@@ -47,15 +49,17 @@ def connect(host: str, port: str, user: str, password: str) -> DVRIPClient:
 			serv = getservbyname(port)
 		except OSError as e:
 			ioerr(e, EX_NOHOST)
-
 	try:
 		host = gethostbyname(host)
 	except OSError as e:
 		ioerr(e, EX_NOHOST)
+	return host, serv
 
+
+def connect(address: Tuple[str, int], user: str, password: str) -> DVRIPClient:
 	conn = DVRIPClient(Socket(AF_INET, SOCK_STREAM))
 	try:
-		conn.connect((host, serv), user, password)
+		conn.connect(address, user, password)
 	except DVRIPDecodeError as e:
 		print(e, file=stderr)
 		exit(EX_PROTOCOL)
@@ -64,16 +68,14 @@ def connect(host: str, port: str, user: str, password: str) -> DVRIPClient:
 		exit(2)  # FIXME more granular codes
 	except OSError as e:
 		ioerr(e)
-
 	return conn
 
 
-def run_info(conn: DVRIPClient, args: List[str]) -> None:  # pylint: disable=too-many-branches,too-many-locals
+def run_info(conn: DVRIPClient, args: List[str]) -> None:
 	if args:
-		fail = tuple(args) != ('-h',)
 		print('Usage: {} ... info'.format(prog()),
-		      file=stderr if fail else stdout)
-		exit(EX_USAGE if fail else 0)
+		      file=stderr)
+		exit(EX_USAGE)
 
 	info = conn.systeminfo()
 	line = [info.chassis, info.board, info.serial]
@@ -141,7 +143,7 @@ def find_usage() -> NoReturn:
 	exit(EX_USAGE)
 
 
-def run_find(conn: DVRIPClient, args: List[str]) -> None:  # pylint: disable=too-many-branches
+def run_find(conn: DVRIPClient, args: List[str]) -> None:
 	from dateparser import parse as dateparse  # type: ignore
 
 	try:
@@ -199,16 +201,29 @@ def run_find(conn: DVRIPClient, args: List[str]) -> None:  # pylint: disable=too
 			print(file.name)
 
 
+def run_cat(conn: DVRIPClient, sock: Socket, args: List[str]) -> None:
+	if len(args) != 1:
+		print('Usage: {} ... cat FILENAME'.format(prog()),
+		      file=stderr)
+		exit(EX_USAGE)
+	name, = args
+	try:
+		file = conn.download(sock, name)
+		copyfileobj(file, stdout.buffer)
+	finally:
+		sock.close()
+
+
 def usage(code: int = EX_USAGE, file: TextIO = stderr) -> NoReturn:
 	print('Usage: {} [-p PORT] [-u USERNAME] HOST COMMAND ...'
 	      .format(prog()),
 	      file=file)
-	print(' where COMMAND is one of info, find, reboot, or time',
+	print(' where COMMAND is one of cat, info, find, reboot, or time',
 	      file=file)
 	exit(code)
 
 
-def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-default-value,too-many-branches
+def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-default-value
 	try:
 		opts, args = getopt(args, 'hp:u:')
 	except GetoptError:
@@ -238,23 +253,35 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 		except EOFError:
 			exit(EX_IOERR)
 
-	if command == 'info':
-		conn = connect(host, port, username, password)
+	if command == 'cat':
+		addr = resolve(host, port)
+		sock = Socket(AF_INET, SOCK_STREAM)
+		try:
+			sock.connect(addr)
+		except OSError as e:
+			ioerr(e)
+		conn = connect(addr, username, password)
+		try:
+			run_cat(conn, sock, args)
+		finally:
+			conn.logout()
+	elif command == 'info':
+		conn = connect(resolve(host, port), username, password)
 		try:
 			run_info(conn, args)
 		finally:
 			conn.logout()
 	elif command == 'find':
-		conn = connect(host, port, username, password)
+		conn = connect(resolve(host, port), username, password)
 		try:
 			run_find(conn, args)
 		finally:
 			conn.logout()
 	elif command == 'reboot':
-		conn = connect(host, port, username, password)
+		conn = connect(resolve(host, port), username, password)
 		conn.reboot()
 	elif command == 'time':
-		conn = connect(host, port, username, password)
+		conn = connect(resolve(host, port), username, password)
 		try:
 			run_time(conn, args)
 		finally:

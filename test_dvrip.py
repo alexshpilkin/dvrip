@@ -84,9 +84,10 @@ def test_Packet_decode_invalid():
 	with raises(DVRIPDecodeError, match='unknown DVRIP version'):
 		Packet.decode(bytes.fromhex('ff020000cdab0000fade0000'
 		                            '123456780500000068656c6c6f'))
-	with raises(DVRIPDecodeError, match='DVRIP packet too long'):
-		Packet.decode(bytes.fromhex('ff010000cdab0000fade0000'
-		                            '123456780140000068656c6c6f'))
+	# See comment in packet.py
+	#with raises(DVRIPDecodeError, match='DVRIP packet too long'):
+	#	Packet.decode(bytes.fromhex('ff010000cdab0000fade0000'
+	#	                            '12345678ffffffff68656c6c6f'))
 
 def test_Status_repr():
 	assert repr(Status.OK) == 'Status(100)'
@@ -277,8 +278,7 @@ def test_ControlFilter_accept():
 	          b'"ExtraChannel" : 0, "Ret" : 100, '
 	          b'"SessionID" : "0x00000057" }\x0A\x00']
 	replies = ClientLogin.replies(0)
-	(n, m), = replies.accept(Packet.load(_ChunkReader(chunks)))
-	assert n == 0
+	m = replies.accept(Packet.load(_ChunkReader(chunks)))
 	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
@@ -294,9 +294,8 @@ def test_ControlFilter_accept_chunked():
 	           fragments=2, fragment=1)
 
 	replies = ClientLogin.replies(0)
-	() = replies.accept(p)
-	(n, m), = replies.accept(q)
-	assert n == 0
+	assert replies.accept(p) is None
+	m = replies.accept(q)
 	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
@@ -308,7 +307,7 @@ def test_ControlFilter_accept_wrong_type():
 	           fragments=2, fragment=0)
 
 	replies = ClientLogin.replies(0)
-	assert replies.accept(p) is None
+	assert replies.accept(p) is NotImplemented
 
 def test_ControlFilter_accept_wrong_number():
 	p = Packet(0x3F, 0, 1001,
@@ -321,8 +320,8 @@ def test_ControlFilter_accept_wrong_number():
 	           fragments=2, fragment=1)
 
 	replies = ClientLogin.replies(0)
-	() = replies.accept(p)
-	assert replies.accept(q) is None
+	assert replies.accept(p) is None
+	assert replies.accept(q) is NotImplemented
 
 def test_ControlFilter_accept_invalid_fragments():
 	p = Packet(0x3F, 0, 1001,
@@ -335,7 +334,7 @@ def test_ControlFilter_accept_invalid_fragments():
 	           fragments=3, fragment=1)
 
 	replies = ClientLogin.replies(0)
-	() = replies.accept(p)
+	assert replies.accept(p) is None
 	with raises(DVRIPDecodeError, match='conflicting fragment counts'):
 		replies.accept(q)
 
@@ -360,7 +359,7 @@ def test_ControlFilter_accept_invalid_overlap():
 	           fragments=2, fragment=0)
 
 	replies = ClientLogin.replies(0)
-	() = replies.accept(p)
+	assert replies.accept(p) is None
 	with raises(DVRIPDecodeError, match='overlapping fragments'):
 		replies.accept(q)
 
@@ -377,18 +376,17 @@ def test_ClientLogoutReply_accept():
 	        b'"SessionID" : "0x00000057" }'
 	        b'\x0A\x00')
 	replies = ClientLogout.replies(0)
-	(n, m), = replies.accept(Packet.decode(data))
-	assert n == 0
+	m = replies.accept(Packet.decode(data))
 	assert m.status == Status(100) and m.session == Session(0x57)
 
 def test_Client_logout(capsys, session, clinoconn, clitosrv, srvtocli):
 	p, = (ClientLogoutReply(status=Status.OK,
 	                        session=session)
-	                       .topackets(session, 2))
+	                       .topackets(session, 57))
 	p.dump(srvtocli)
 	p, = (ClientLogoutReply(status=Status.OK,
 	                        session=session)
-	                       .topackets(session, 1))
+	                       .topackets(session, 2))
 	p.dump(srvtocli)
 	srvtocli.seek(0)
 
@@ -406,7 +404,7 @@ def test_Client_login(session, cliconn, clitosrv, srvtocli):
 	                       views=0,
 	                       chassis='HVR',
 	                       encrypt=False)
-	                      .topackets(session, 1))
+	                      .topackets(session, 2))
 	p.dump(srvtocli); srvtocli.seek(0)
 
 	cliconn.connect(('example.com', DVRIP_PORT), 'admin', '')
@@ -422,7 +420,7 @@ def test_Client_login_invalid(session, cliconn, clitosrv, srvtocli):
 	                       views=0,
 	                       chassis='HVR',
 	                       encrypt=False)
-	                      .topackets(session, 1))
+	                      .topackets(session, 2))
 	p.dump(srvtocli); srvtocli.seek(0)
 
 	with raises(DVRIPRequestError, match='Unknown error'):

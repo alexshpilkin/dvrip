@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from socket import AF_INET, SOCK_STREAM, socket as Socket
 from sys import argv, stderr
 from dvrip import DVRIP_PORT
-from dvrip.io import DVRIPClient  # pylint: disable=wildcard-import,unused-wildcard-import
+from dvrip.io import DVRIPClient
 from dvrip.search import FileType
 
 
@@ -30,9 +30,20 @@ print(conn.systeminfo())
 print(conn.storageinfo())
 print(conn.time(conn.time() - timedelta(seconds=0)))
 now = datetime.now()
-print(list(conn.search(start=now - timedelta(days=5),
+print(list(conn.search(start=now - timedelta(hours=5),
                        end=now,
                        channel=0,
                        type=FileType.VIDEO)))
+
+name = '/idea0/2019-05-01/001/01.04.07-01.04.23[M][@15b7][0].h264'
+sock = Socket(AF_INET, SOCK_STREAM)
+sock.connect((argv[1], DVRIP_PORT))
+in_ = conn.download(sock, name)
+with open('test.bin', 'wb') as out:
+	while True:
+		chunk = in_.read()
+		if not chunk: break
+		out.write(chunk)
+
 #conn.reboot()
 conn.logout()

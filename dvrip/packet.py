@@ -103,8 +103,9 @@ class Packet(object):
 			raise DVRIPDecodeError('invalid DVRIP magic')
 		if version != cls.VERSION:
 			raise DVRIPDecodeError('unknown DVRIP version')
-		if length > cls.MAXLEN:
-			raise DVRIPDecodeError('DVRIP packet too long')
+		# FIXME Longer packets (up to 8M) do occur
+		#if length > cls.MAXLEN:
+		#	raise DVRIPDecodeError('DVRIP packet too long')
 		payload = _read(file, length)
 		return cls(session=session, number=number,
 		           fragments=_fragment0, fragment=_fragment1,

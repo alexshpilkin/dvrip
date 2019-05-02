@@ -1,11 +1,15 @@
+from datetime import datetime
+from io import RawIOBase
+
 from .errors import DVRIPDecodeError, DVRIPRequestError
 from .info import GetInfo, Info
 from .login import ClientLogin, ClientLogout, Hash
-from .message import Session, Status
+from .message import EPOCH, Session, Status
 from .packet import Packet
 from .search import GetFile, FileQuery
 from .operation import GetTime, Machine, MachineOperation, Operation, \
                        PerformOperation
+from .playback import Action, Claim, DoPlayback, Params, Playback
 
 __all__ = ('DVRIPConnection', 'DVRIPClient', 'DVRIPServer')
 
@@ -17,7 +21,7 @@ class DVRIPConnection(object):
 		self.socket   = socket
 		self.file     = socket.makefile('rwb', buffering=0)
 		self.session  = session
-		self.number   = number
+		self.number   = number & ~1
 
 	def send(self, number, message):
 		file = self.file
@@ -26,23 +30,58 @@ class DVRIPConnection(object):
 
 	def recv(self, filter):  # pylint: disable=redefined-builtin
 		file = self.file
-		results = []
-		while filter:
+		while True:
 			packet = Packet.load(file)
-			self.number = max(self.number, packet.number)
-			chunk = filter.accept(packet)
-			if chunk is None:
-				print('unrecognized packet:', packet)  # FIXME
+			self.number = max(self.number, packet.number & ~1)
+			reply = filter.accept(packet)
+			if reply is NotImplemented:
+				print('unrecognized packet:', packet.number)  # FIXME
 				continue
-			results.extend(chunk)
-		return results
+			if reply is not None:
+				return reply
 
 	def request(self, request):
-		self.number += 1
+		self.number += 2
 		self.send(self.number, request)
-		(_, reply), = self.recv(request.replies(self.number))  # pylint: disable=unbalanced-tuple-unpacking
+		reply = self.recv(request.replies(self.number))
 		DVRIPRequestError.signal(request, reply)
 		return reply
+
+	def stream(self, socket, claim, request):
+		data = DVRIPConnection(socket, self.session)
+		data.send(data.number, claim)
+		self.request(request)
+		reply = data.recv(claim.replies(data.number))
+		DVRIPRequestError.signal(claim, reply)
+		return DVRIPReader(data, claim.stream())
+
+
+class DVRIPReader(RawIOBase):
+	__slots__ = ('conn', 'filter', 'buffer')
+
+	def __init__(self, conn, filter):  # pylint: disable=redefined-builtin
+		super().__init__()
+		self.conn   = conn
+		self.filter = filter
+		self.buffer = b''
+
+	def readable(self):
+		return True
+
+	def readinto(self, buffer):
+		if self.buffer is None:
+			return 0  # EOF
+		if not self.buffer:
+			self.buffer = memoryview(self.conn.recv(self.filter))
+
+		buffer[:len(self.buffer)] = self.buffer[:len(buffer)]
+		if len(self.buffer) > len(buffer):  # pylint: disable=no-else-return
+			self.buffer = self.buffer[len(buffer):]
+			return len(buffer)
+		else:
+			length = len(self.buffer)
+			self.buffer = b'' if length else None
+			return length
 
 
 class DVRIPClient(DVRIPConnection):
@@ -62,7 +101,6 @@ class DVRIPClient(DVRIPConnection):
 		                      hash=hash,
 		                      service=service)
 		reply = self.request(request)
-		DVRIPRequestError.signal(request, reply)
 		self.session    = reply.session
 		self._logininfo = reply
 
@@ -101,29 +139,30 @@ class DVRIPClient(DVRIPConnection):
 	def time(self, time=None):
 		reply = self.request(GetTime(session=self.session))
 		if time is not None:
-			self.request(PerformOperation(
-			    command=Operation.SETTIME,
-			    session=self.session,
-			    settime=time))
+			request = PerformOperation(command=Operation.SETTIME,
+			                           session=self.session,
+			                           settime=time)
+			self.request(request)
 		if reply.gettime is NotImplemented:
 			return None
 		return reply.gettime
 
 	def reboot(self):
-		self.request(PerformOperation(
-		    command=Operation.MACHINE,
-		    machine=MachineOperation(action=Machine.REBOOT),
-		    session=self.session))
+		machine = MachineOperation(action=Machine.REBOOT)
+		request = PerformOperation(command=Operation.MACHINE,
+		                           session=self.session,
+		                           machine=machine)
+		self.request(request)
 		self.socket.close()  # FIXME reset?
 		self.socket = self.file = self.session = None
 
 	def search(self, start, **kwargs):
 		last = None
 		while True:
-			reply = self.request(GetFile(
-				     session=self.session,
-				     filequery=FileQuery(start=start,
-				                         **kwargs)))
+			request = GetFile(session=self.session,
+				          filequery=FileQuery(start=start,
+				                              **kwargs))
+			reply = self.request(request)
 			if reply.files is NotImplemented:
 				return
 			drop = True
@@ -138,6 +177,15 @@ class DVRIPClient(DVRIPConnection):
 				return
 			last  = reply.files[-1]
 			start = last.start
+
+	def download(self, socket, name):
+		pb = Playback(action=Action.DOWNLOADSTART,
+		              start=EPOCH,
+		              end=datetime(9999, 12, 31, 23, 59, 59),
+		              params=Params(name=name))
+		claim = Claim(session=self.session, playback=pb)
+		request = DoPlayback(session=self.session, playback=pb)
+		return self.stream(socket, claim, request)
 
 
 class DVRIPServer(DVRIPConnection):

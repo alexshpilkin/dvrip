@@ -22,7 +22,7 @@ class _ChunkReader(RawIOBase):
 		return True
 	def readinto(self, buffer):
 		if not self.chunks:
-			return 0
+			return 0  # EOF
 		chunk = self.chunks[-1]
 		assert chunk
 		buffer[:len(chunk)] = chunk[:len(buffer)]
@@ -242,14 +242,11 @@ class ControlFilter(object):
 		self.limit   = None
 		self.packets = None
 
-	def __bool__(self):
-		return self.limit is None or self.count < self.limit
-
 	def accept(self, packet):
 		if packet.type != self.cls.type:
-			return None
-		if packet.number != self.number:
-			return None
+			return NotImplemented
+		if packet.number & ~1 != self.number & ~1:
+			return NotImplemented
 		if self.limit is None:
 			self.limit   = max(packet.fragments, 1)
 			self.packets = [None] * self.limit
@@ -264,8 +261,26 @@ class ControlFilter(object):
 		self.packets[packet.fragment] = packet
 		self.count += 1
 		if self.count < self.limit:
-			return ()
-		return ((self.number, self.cls.frompackets(self.packets)),)
+			return None
+		return self.cls.frompackets(self.packets)
+
+
+class StreamFilter(object):
+	__slots__ = ('type', 'end')
+
+	def __init__(self, type):  # pylint: disable=redefined-builtin
+		self.type = type
+		self.end  = False
+
+	def accept(self, packet):
+		if self.end:
+			return b''
+		if packet.type != self.type:
+			return NotImplemented
+		if not packet.payload and not packet.end:
+			return None
+		self.end = packet.end
+		return packet.payload
 
 
 class ControlRequest(ControlMessage):
@@ -274,9 +289,17 @@ class ControlRequest(ControlMessage):
 	def reply(self):
 		raise NotImplementedError  # pragma: no cover
 
+	@property
+	def data(self):
+		raise NotImplementedError  # pragma: no cover
+
 	@classmethod
 	def replies(cls, number):
 		return ControlFilter(cls.reply, number)
+
+	@classmethod
+	def stream(cls):
+		return StreamFilter(cls.data)
 
 
 class Choice(Enum):
