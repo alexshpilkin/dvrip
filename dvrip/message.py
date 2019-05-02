@@ -9,8 +9,8 @@ from .errors import DVRIPDecodeError
 from .packet import Packet
 from .typing import Value, for_json, json_to
 
-__all__ = ('hextype', 'Session', 'Status', 'ControlMessage', 'ControlFilter',
-           'ControlRequest', 'Choice')
+__all__ = ('hextype', 'datetimetype', 'Choice', 'Session', 'Status',
+           'ControlMessage', 'controlfilter', 'streamfilter', 'ControlRequest')
 
 
 class _ChunkReader(RawIOBase):
@@ -77,6 +77,24 @@ def _json_to_datetime(datum: object) -> Optional[datetime]:
 	return value
 
 datetimetype = (_json_to_datetime, _datetime_for_json)
+
+
+class Choice(Enum):
+	def __repr__(self):
+		return '{}.{}'.format(type(self).__qualname__, self.name)
+
+	def __str__(self):
+		return self.value
+
+	def for_json(self):
+		return for_json(self.value)
+
+	@classmethod
+	def json_to(cls, datum):
+		try:
+			return cls(json_to(str)(datum))
+		except ValueError:
+			raise DVRIPDecodeError('not a known choice')
 
 
 class Session(object):
@@ -232,55 +250,48 @@ class ControlMessage(Value):
 		return cls.fromchunks(p.payload for p in packets if p.payload)
 
 
-class ControlFilter(object):
-	__slots__ = ('cls', 'number', 'count', 'limit', 'packets')
+def controlfilter(cls, number):
+	count   = 0
+	limit   = 0
+	packets = []
 
-	def __init__(self, cls, number):
-		self.cls     = cls
-		self.number  = number
-		self.count   = 0
-		self.limit   = None
-		self.packets = None
-
-	def accept(self, packet):
-		if packet.type != self.cls.type:
-			return NotImplemented
-		if packet.number & ~1 != self.number & ~1:
-			return NotImplemented
-		if self.limit is None:
-			self.limit   = max(packet.fragments, 1)
-			self.packets = [None] * self.limit
-		if max(packet.fragments, 1) != self.limit:
+	packet = yield  # prime the pump
+	while True:
+		if packet.type != cls.type:
+			packet = yield NotImplemented; continue
+		if packet.number & ~1 != number & ~1:
+			packet = yield NotImplemented; continue
+		if not limit:
+			limit   = max(packet.fragments, 1)
+			packets = [None] * limit
+		if max(packet.fragments, 1) != limit:
 			raise DVRIPDecodeError('conflicting fragment counts')
-		if packet.fragment >= self.limit:
+		if packet.fragment >= limit:
 			raise DVRIPDecodeError('invalid fragment number')
-		if self.packets[packet.fragment] is not None:
+		if packets[packet.fragment] is not None:
 			raise DVRIPDecodeError('overlapping fragments')
 
-		assert self.count < self.limit
-		self.packets[packet.fragment] = packet
-		self.count += 1
-		if self.count < self.limit:
-			return None
-		return self.cls.frompackets(self.packets)
+		assert count < limit
+		packets[packet.fragment] = packet
+		count += 1
+		if count < limit:
+			yield None
+			packet = yield
+			continue
+		else:
+			yield cls.frompackets(packets)
+			return
 
 
-class StreamFilter(object):
-	__slots__ = ('type', 'end')
-
-	def __init__(self, type):  # pylint: disable=redefined-builtin
-		self.type = type
-		self.end  = False
-
-	def accept(self, packet):
-		if self.end:
-			return b''
-		if packet.type != self.type:
-			return NotImplemented
-		if not packet.payload and not packet.end:
-			return None
-		self.end = packet.end
-		return packet.payload
+def streamfilter(type):  # pylint: disable=redefined-builtin
+	packet = yield  # prime the pump
+	while True:
+		if packet.type != type:
+			packet = yield NotImplemented
+			continue
+		yield packet.payload if packet.payload else None
+		if packet.end: return
+		packet = yield
 
 
 class ControlRequest(ControlMessage):
@@ -295,26 +306,8 @@ class ControlRequest(ControlMessage):
 
 	@classmethod
 	def replies(cls, number):
-		return ControlFilter(cls.reply, number)
+		return controlfilter(cls.reply, number)
 
 	@classmethod
 	def stream(cls):
-		return StreamFilter(cls.data)
-
-
-class Choice(Enum):
-	def __repr__(self):
-		return '{}.{}'.format(type(self).__qualname__, self.name)
-
-	def __str__(self):
-		return self.value
-
-	def for_json(self):
-		return for_json(self.value)
-
-	@classmethod
-	def json_to(cls, datum):
-		try:
-			return cls(json_to(str)(datum))
-		except ValueError:
-			raise DVRIPDecodeError('not a known choice')
+		return streamfilter(cls.data)

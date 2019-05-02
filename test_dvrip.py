@@ -84,10 +84,9 @@ def test_Packet_decode_invalid():
 	with raises(DVRIPDecodeError, match='unknown DVRIP version'):
 		Packet.decode(bytes.fromhex('ff020000cdab0000fade0000'
 		                            '123456780500000068656c6c6f'))
-	# See comment in packet.py
-	#with raises(DVRIPDecodeError, match='DVRIP packet too long'):
-	#	Packet.decode(bytes.fromhex('ff010000cdab0000fade0000'
-	#	                            '12345678ffffffff68656c6c6f'))
+	with raises(DVRIPDecodeError, match='DVRIP packet too long'):
+		Packet.decode(bytes.fromhex('ff010000cdab0000fade0000'
+		                            '12345678ffffffff68656c6c6f'))
 
 def test_Status_repr():
 	assert repr(Status.OK) == 'Status(100)'
@@ -229,14 +228,14 @@ def test_ClientLogin_topackets(session):
 	                      b'"LoginType": "DVRIP-Web"}')
 
 def test_ClientLogin_topackets_chunked(session):
-	p, q = tuple(ClientLogin(username='a'*16384,
+	p, q = tuple(ClientLogin(username='a'*32768,
 	                         passhash='tlJwpbo6',
 	                         hash=Hash.XMMD5,
 	                         service='DVRIP-Web')
 	                        .topackets(session, 0))
 	assert (p.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
-	                      b'\x00\x00\x02\x00\xE8\x03\x00\x40\x00\x00'
-	                      b'{"UserName": "' + b'a' * (16384 - 14))
+	                      b'\x00\x00\x02\x00\xE8\x03\x00\x80\x00\x00'
+	                      b'{"UserName": "' + b'a' * (32768 - 14))
 	assert (q.encode() == b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	                      b'\x00\x00\x02\x01\xE8\x03\x58\x00\x00\x00' +
 	                      b'a' * 14 + b'", '
@@ -270,7 +269,7 @@ def test_ClientLoginReply_fromchunks_empty():
 	with raises(DVRIPDecodeError, match='no data in DVRIP packet'):
 		ClientLoginReply.fromchunks([])
 
-def test_ControlFilter_accept():
+def test_controlfilter_send():
 	chunks = [b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00',
 	          b'\x00\x00\x00\x00\xe9\x03\x96\x00\x00\x00'
 	          b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
@@ -278,12 +277,15 @@ def test_ControlFilter_accept():
 	          b'"ExtraChannel" : 0, "Ret" : 100, '
 	          b'"SessionID" : "0x00000057" }\x0A\x00']
 	replies = ClientLogin.replies(0)
-	m = replies.accept(Packet.load(_ChunkReader(chunks)))
+	assert replies.send(None) is None
+	m = replies.send(Packet.load(_ChunkReader(chunks)))
 	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
+	with raises(StopIteration):
+		replies.send(None)
 
-def test_ControlFilter_accept_chunked():
+def test_controlfilter_send_chunked():
 	p = Packet(0x57, 0, 1001,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
@@ -294,22 +296,27 @@ def test_ControlFilter_accept_chunked():
 	           fragments=2, fragment=1)
 
 	replies = ClientLogin.replies(0)
-	assert replies.accept(p) is None
-	m = replies.accept(q)
+	assert replies.send(None) is None
+	assert replies.send(p) is None
+	assert replies.send(None) is None
+	m = replies.send(q)
 	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
+	with raises(StopIteration):
+		replies.send(None)
 
-def test_ControlFilter_accept_wrong_type():
+def test_controlfilter_send_wrong_type():
 	p = Packet(0x57, 0, 1002,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	           fragments=2, fragment=0)
 
 	replies = ClientLogin.replies(0)
-	assert replies.accept(p) is NotImplemented
+	assert replies.send(None) is None
+	assert replies.send(p) is NotImplemented
 
-def test_ControlFilter_accept_wrong_number():
+def test_controlfilter_send_wrong_number():
 	p = Packet(0x3F, 0, 1001,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
@@ -320,10 +327,12 @@ def test_ControlFilter_accept_wrong_number():
 	           fragments=2, fragment=1)
 
 	replies = ClientLogin.replies(0)
-	assert replies.accept(p) is None
-	assert replies.accept(q) is NotImplemented
+	assert replies.send(None) is None
+	assert replies.send(p) is None
+	assert replies.send(None) is None
+	assert replies.send(q) is NotImplemented
 
-def test_ControlFilter_accept_invalid_fragments():
+def test_controlfilter_send_invalid_fragments():
 	p = Packet(0x3F, 0, 1001,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
@@ -334,21 +343,24 @@ def test_ControlFilter_accept_invalid_fragments():
 	           fragments=3, fragment=1)
 
 	replies = ClientLogin.replies(0)
-	assert replies.accept(p) is None
+	assert replies.send(None) is None
+	assert replies.send(p) is None
+	assert replies.send(None) is None
 	with raises(DVRIPDecodeError, match='conflicting fragment counts'):
-		replies.accept(q)
+		replies.send(q)
 
-def test_ControlFilter_accept_invalid_overrun():
+def test_controlfilter_send_invalid_overrun():
 	p = Packet(0x3F, 0, 1001,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
 	           fragments=2, fragment=4)
 
 	replies = ClientLogin.replies(0)
+	assert replies.send(None) is None
 	with raises(DVRIPDecodeError, match='invalid fragment number'):
-		replies.accept(p)
+		replies.send(p)
 
-def test_ControlFilter_accept_invalid_overlap():
+def test_controlfilter_send_invalid_overlap():
 	p = Packet(0x3F, 0, 1001,
 	           b'{ "AliveInterval" : 21, "ChannelNum" : 4, '
 	           b'"DataUseAES" : false, "DeviceType " : "HVR", ',
@@ -359,9 +371,49 @@ def test_ControlFilter_accept_invalid_overlap():
 	           fragments=2, fragment=0)
 
 	replies = ClientLogin.replies(0)
-	assert replies.accept(p) is None
+	assert replies.send(None) is None
+	assert replies.send(p) is None
+	assert replies.send(None) is None
 	with raises(DVRIPDecodeError, match='overlapping fragments'):
-		replies.accept(q)
+		replies.send(q)
+
+def test_streamfilter_send(session):
+	p = Packet(session.id, 0, 1426, b'hello', channel=0, end=0)
+	r = Packet(session.id, 2, 1425, b'world', channel=0, end=0)
+	q = Packet(session.id, 1, 1426, b'',      channel=0, end=0)
+	s = Packet(session.id, 2, 1426, b'world', channel=0, end=1)
+
+	f = streamfilter(1426)  # pylint: disable=
+	assert f.send(None) is None  # prime
+	assert f.send(p) == b'hello'
+	assert f.send(None) is None  # re-prime
+	assert f.send(q) is None
+	assert f.send(None) is None
+	assert f.send(r) is NotImplemented
+	assert f.send(s) == b'world'
+	with raises(StopIteration):
+		f.send(None)  # re-prime
+
+class ExampleRequest(ControlRequest):
+	type  = 57
+	reply = None  # FIXME
+	data  = 42
+
+	def for_json(self):
+		return 'example'
+
+	@classmethod
+	def json_to(cls):
+		return cls()
+
+def test_ControlMessage_stream(session):
+	p = Packet(session.id, 0, 42, b'hello', channel=0, end=1)
+	r = ExampleRequest()
+	f = r.stream()
+	assert f.send(None) is None  # prime
+	assert f.send(p) == b'hello'
+	with raises(StopIteration):
+		f.send(None)  # re-prime
 
 def test_ClientLogout_topackets(session):
 	p, = (ClientLogout(session=session).topackets(session, 0))
@@ -369,21 +421,20 @@ def test_ClientLogout_topackets(session):
 	                      b'\x00\x00\x00\x00\xEA\x03\x27\x00\x00\x00'
 	                      b'{"Name": "", "SessionID": "0x00000057"}')
 
-def test_ClientLogoutReply_accept():
+def test_ClientLogoutReply_replies():
 	data = (b'\xFF\x01\x00\x00\x57\x00\x00\x00\x00\x00'
 	        b'\x00\x00\x00\x00\xeb\x03\x3A\x00\x00\x00'
 	        b'{ "Name" : "", "Ret" : 100, '
 	        b'"SessionID" : "0x00000057" }'
 	        b'\x0A\x00')
 	replies = ClientLogout.replies(0)
-	m = replies.accept(Packet.decode(data))
+	assert replies.send(None) is None
+	m = replies.send(Packet.decode(data))
 	assert m.status == Status(100) and m.session == Session(0x57)
+	with raises(StopIteration):
+		replies.send(None)
 
 def test_Client_logout(capsys, session, clinoconn, clitosrv, srvtocli):
-	p, = (ClientLogoutReply(status=Status.OK,
-	                        session=session)
-	                       .topackets(session, 57))
-	p.dump(srvtocli)
 	p, = (ClientLogoutReply(status=Status.OK,
 	                        session=session)
 	                       .topackets(session, 2))
@@ -393,8 +444,16 @@ def test_Client_logout(capsys, session, clinoconn, clitosrv, srvtocli):
 	clinoconn.logout()
 	clitosrv.seek(0); m = ClientLogout.frompackets([Packet.load(clitosrv)])
 	assert m == ClientLogout(session=session)
-	out1, out2 = capsys.readouterr().out.split('\n')
-	assert out1.startswith('unrecognized packet: ') and out2 == ''
+
+def test_Client_logout_stray(capsys, session, clinoconn, clitosrv, srvtocli):
+	p, = (ClientLogoutReply(status=Status.OK,
+	                        session=session)
+	                       .topackets(session, 57))
+	p.dump(srvtocli)
+	srvtocli.seek(0)
+
+	with raises(DVRIPDecodeError, match='stray packet'):
+		clinoconn.logout()
 
 def test_Client_login(session, cliconn, clitosrv, srvtocli):
 	p, = (ClientLoginReply(status=Status.OK,

@@ -10,10 +10,11 @@ from dvrip.search import FileType
 
 import dvrip.packet
 
+
 def _read(file, length, _read=dvrip.packet._read):  # pylint: disable=protected-access
 	data = _read(file, length)
-	print('recv', bytes(data) if data[:1].isascii() else data.hex(),
-	      file=stderr, flush=True)
+	#print('recv', bytes(data) if data[:1].isascii() else data.hex(),
+	#      file=stderr, flush=True)
 	return data
 dvrip.packet._read = _read  # pylint: disable=protected-access
 
@@ -39,7 +40,7 @@ name = '/idea0/2019-05-01/001/01.04.07-01.04.23[M][@15b7][0].h264'
 sock = Socket(AF_INET, SOCK_STREAM)
 sock.connect((argv[1], DVRIP_PORT))
 in_ = conn.download(sock, name)
-with open('test.bin', 'wb') as out:
+with open('test.264', 'wb') as out:
 	while True:
 		chunk = in_.read()
 		if not chunk: break

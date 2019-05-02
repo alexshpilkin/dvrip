@@ -33,7 +33,7 @@ def _write(file, data):
 class Packet(object):
 	MAGIC    = 0xFF
 	VERSION  = 0x01
-	MAXLEN   = 16384
+	MAXLEN   = 32768
 	__STRUCT = Struct('<BBxxIIBBHI')
 
 	__slots__ = ('session', 'number', '_fragment0', '_fragment1', 'type',
@@ -103,9 +103,8 @@ class Packet(object):
 			raise DVRIPDecodeError('invalid DVRIP magic')
 		if version != cls.VERSION:
 			raise DVRIPDecodeError('unknown DVRIP version')
-		# FIXME Longer packets (up to 8M) do occur
-		#if length > cls.MAXLEN:
-		#	raise DVRIPDecodeError('DVRIP packet too long')
+		if length > cls.MAXLEN:
+			raise DVRIPDecodeError('DVRIP packet too long')
 		payload = _read(file, length)
 		return cls(session=session, number=number,
 		           fragments=_fragment0, fragment=_fragment1,

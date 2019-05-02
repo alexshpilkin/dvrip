@@ -29,16 +29,18 @@ class DVRIPConnection(object):
 			packet.dump(file)
 
 	def recv(self, filter):  # pylint: disable=redefined-builtin
-		file = self.file
+		file   = self.file
+		filter = iter(filter)
+		filter.send(None)  # prime the pump
 		while True:
 			packet = Packet.load(file)
 			self.number = max(self.number, packet.number & ~1)
-			reply = filter.accept(packet)
+			reply = filter.send(packet)  # raises StopIteration
 			if reply is NotImplemented:
-				print('unrecognized packet:', packet.number)  # FIXME
-				continue
+				raise DVRIPDecodeError('stray packet')
 			if reply is not None:
 				return reply
+			filter.send(None)
 
 	def request(self, request):
 		self.number += 2
@@ -69,19 +71,18 @@ class DVRIPReader(RawIOBase):
 		return True
 
 	def readinto(self, buffer):
-		if self.buffer is None:
-			return 0  # EOF
 		if not self.buffer:
-			self.buffer = memoryview(self.conn.recv(self.filter))
+			try:
+				data = self.conn.recv(self.filter)
+			except StopIteration:
+				return 0
+			self.buffer = memoryview(data)
 
-		buffer[:len(self.buffer)] = self.buffer[:len(buffer)]
-		if len(self.buffer) > len(buffer):  # pylint: disable=no-else-return
-			self.buffer = self.buffer[len(buffer):]
-			return len(buffer)
-		else:
-			length = len(self.buffer)
-			self.buffer = b'' if length else None
-			return length
+		length = len(self.buffer)
+		buffer[:length] = self.buffer[:len(buffer)]
+		self.buffer     = self.buffer[len(buffer):]
+		assert min(length, len(buffer))
+		return min(length, len(buffer))
 
 
 class DVRIPClient(DVRIPConnection):
