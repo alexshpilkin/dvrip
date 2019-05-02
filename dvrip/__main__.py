@@ -139,7 +139,8 @@ def run_time(conn: DVRIPClient, args: List[str]) -> None:
 
 
 def find_usage() -> NoReturn:
-	print('Usage: {} ... time [-liv] [-s START] [-e END] -c CHANNEL')
+	print('Usage: {} ... time [-liv] [-s START] [-e END] -c CHANNEL'
+	      .format(prog()))
 	exit(EX_USAGE)
 
 
