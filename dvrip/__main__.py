@@ -9,10 +9,10 @@ from shutil import copyfileobj
 from socket import AF_INET, SOCK_STREAM, socket as Socket, gethostbyname, \
                    getservbyname
 from sys import argv, executable, exit, stderr, stdout  # pylint: disable=redefined-builtin
-from typing import List, NoReturn, TextIO, Tuple
+from typing import List, NoReturn, Tuple
 from .errors import DVRIPDecodeError, DVRIPRequestError
 from .io import DVRIPClient
-from .message import EPOCH, RESOLUTION
+from .message import EPOCH
 from .monitor import Stream
 from .search import FileType
 
@@ -140,7 +140,7 @@ def run_time(conn: DVRIPClient, args: List[str]) -> None:
 
 
 def find_usage() -> NoReturn:
-	print('Usage: {} ... time [-liv] [-s START] [-e END] -c CHANNEL'
+	print('Usage: {} ... time -{{iv}} [-l] [-s START] [-e END] -c CHANNEL'
 	      .format(prog()))
 	exit(EX_USAGE)
 
@@ -187,7 +187,7 @@ def run_find(conn: DVRIPClient, args: List[str]) -> None:
 	if filetype is None or channel is None:
 		find_usage()
 	if start is None:
-		start = EPOCH + RESOLUTION
+		start = EPOCH
 	if end is None:
 		end = datetime.now()
 
@@ -242,46 +242,85 @@ def run_cat(conn: DVRIPClient, sock: Socket, args: List[str]) -> None:
 		sock.close()
 
 
-def usage(code: int = EX_USAGE, file: TextIO = stderr) -> NoReturn:
-	print('Usage: {} [-p PORT] [-u USERNAME] HOST COMMAND ...'
+def neigh_usage() -> NoReturn:
+	print('Usage: {} neigh'.format(prog()), file=stderr)
+	exit(EX_USAGE)
+
+def run_neigh(args: List[str]) -> None:
+	try:
+		opts, args = getopt(args, 'i:t:')
+	except GetoptError:
+		neigh_usage()
+	if args:
+		neigh_usage()
+
+	interface = ''
+	timeout   = 1.0
+	for opt, arg in opts:
+		if opt == '-i':
+			try:
+				interface = gethostbyname(arg)
+			except OSError as e:
+				ioerr(e, EX_NOHOST)
+		if opt == '-t':
+			try:
+				timeout = float(arg)
+			except ValueError:
+				neigh_usage()
+
+	try:
+		for result in DVRIPClient.discover(interface, timeout):
+			print('{} {} {} {}/{} via {} port {} channels {}'
+			      .format(result.serial, result.mac, result.name,
+			              result.host, result.mask, result.router,
+			              result.tcpport, result.channels))
+	except OSError as e:
+		ioerr(e)
+
+
+def usage() -> NoReturn:
+	print('Usage: {} [-h HOST] [-p PORT] [-u USERNAME] COMMAND ...'
 	      .format(prog()),
-	      file=file)
-	print(' where COMMAND is one of cat, info, find, reboot, or time',
-	      file=file)
-	exit(code)
+	      file=stderr)
+	print(' where COMMAND is one of cat, find, info, neigh, reboot, or '
+	      'time',
+	      file=stderr)
+	exit(EX_USAGE)
 
 
 def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-default-value
 	try:
-		opts, args = getopt(args, 'hp:u:')
+		opts, args = getopt(args, 'h:p:u:')
 	except GetoptError:
 		usage()
-	if len(args) < 2:
+	if not args:
 		usage()
-	host, command, *args = args
+	command, *args = args
 	if not all(c.isalnum() or c == '-' for c in command):
 		usage()
 
+	host = None
 	port = environ.get('DVR_PORT', '34567')
 	username = environ.get('DVR_USERNAME', 'admin')
 	for opt, arg in opts:
+		if opt == '-h':
+			host = arg
 		if opt == '-p':
 			port = arg
 		if opt == '-u':
 			username = arg
-		if opt == '-h':
-			if len(opts) != 1:
-				usage()
-			usage(0, file=stdout)
 
 	password = environ.get('DVR_PASSWORD', None)
-	if password is None:
+	if host is not None and password is None:
 		try:
 			password = getpass('Password: ')
 		except EOFError:
 			exit(EX_IOERR)
 
 	if command == 'cat':
+		if host is None:
+			usage()
+		assert password is not None
 		addr = resolve(host, port)
 		sock = Socket(AF_INET, SOCK_STREAM)
 		try:
@@ -293,22 +332,38 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 			run_cat(conn, sock, args)
 		finally:
 			conn.logout()
+	elif command == 'neigh':
+		if host is not None:
+			usage()
+		run_neigh(args)
 	elif command == 'info':
+		if host is None:
+			usage()
+		assert password is not None
 		conn = connect(resolve(host, port), username, password)
 		try:
 			run_info(conn, args)
 		finally:
 			conn.logout()
 	elif command == 'find':
+		if host is None:
+			usage()
+		assert password is not None
 		conn = connect(resolve(host, port), username, password)
 		try:
 			run_find(conn, args)
 		finally:
 			conn.logout()
 	elif command == 'reboot':
+		if host is None:
+			usage()
+		assert password is not None
 		conn = connect(resolve(host, port), username, password)
 		conn.reboot()
 	elif command == 'time':
+		if host is None:
+			usage()
+		assert password is not None
 		conn = connect(resolve(host, port), username, password)
 		try:
 			run_time(conn, args)

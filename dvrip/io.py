@@ -1,6 +1,9 @@
 from datetime import datetime
 from io import RawIOBase
+from socket import AF_INET, SO_BROADCAST, SO_REUSEADDR, SOCK_DGRAM, \
+                   socket as Socket, SOL_SOCKET, timeout as Timeout
 
+from .discover import DiscoverReply
 from .errors import DVRIPDecodeError, DVRIPRequestError
 from .info import GetInfo, Info
 from .login import ClientLogin, ClientLogout, Hash
@@ -94,6 +97,30 @@ class DVRIPClient(DVRIPConnection):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self._logininfo = None
+
+	@staticmethod
+	def discover(interface, timeout):
+		sock = Socket(AF_INET, SOCK_DGRAM)
+		sock.settimeout(timeout)
+		sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+		sock.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+		sock.bind((interface, 34569))
+
+		request = Packet(0, 0, 1530, b'', fragments=0, fragment=0)
+		sock.sendto(request.encode(), ('255.255.255.255', 34569))
+
+		while True:
+			try:
+				data, (host, _) = sock.recvfrom(Packet.MAXLEN)
+			except Timeout:
+				break
+			packet = Packet.decode(data)
+			if not packet.payload: continue
+			reply = DiscoverReply.frompackets([packet]).host
+			if reply.host != host:
+				raise DVRIPDecodeError('wrong IP address '
+				                       'reported')
+			yield reply
 
 	def login(self, username, password, hash=Hash.XMMD5,  # pylint: disable=redefined-builtin
 	          service='DVRIP-Web'):

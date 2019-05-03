@@ -9,6 +9,8 @@ from socket import socket as Socket
 
 # pylint: disable=wildcard-import,unused-wildcard-import
 from dvrip import DVRIP_PORT
+from dvrip.discover import _json_to_ip,  _json_to_mask, _ip_for_json, \
+                           _mask_for_json
 from dvrip.errors import *
 from dvrip.info import *
 from dvrip.info import _json_to_version, _version_for_json, _versiontype
@@ -522,3 +524,38 @@ def test_info_jsonto(cmd):
 	assert Info.json_to(cmd.value) == cmd
 	with raises(DVRIPDecodeError, match='not a known'):
 		Info.json_to('SPAM')
+
+octets = lambda: integers(min_value=0, max_value=255)
+
+@given(octets(), octets(), octets(), octets())
+def test_ip_forjson(a, b, c, d):
+	assert (_ip_for_json('{}.{}.{}.{}'.format(a, b, c, d)) ==
+	        '0x{3:02X}{2:02X}{1:02X}{0:02X}'.format(a, b, c, d))
+
+@given(octets(), octets(), octets(), octets())
+def test_ip_jsonto(a, b, c, d):
+	assert (_json_to_ip('0x{3:02X}{2:02X}{1:02X}{0:02X}'
+	                    .format(a, b, c, d)) ==
+	        '{}.{}.{}.{}'.format(a, b, c, d))
+
+@given(octets(), octets(), octets(), octets())
+def test_ip_forjson_jsonto(a, b, c, d):
+	value = '{}.{}.{}.{}'.format(a, b, c, d)
+	assert _json_to_ip(_ip_for_json(value)) == value
+
+@given(octets(), octets(), octets(), octets())
+def test_ip_jsonto_forjson(a, b, c, d):
+	value = '0x{3:02X}{2:02X}{1:02X}{0:02X}'.format(a, b, c, d)
+	assert _ip_for_json(_json_to_ip(value)) == value
+
+def test_mask_forjson():
+	assert _mask_for_json(24) == '0x00FFFFFF'
+	assert _mask_for_json(20) == '0x000FFFFF'
+	assert _mask_for_json(16) == '0x0000FFFF'
+	assert _mask_for_json(8)  == '0x000000FF'
+
+def test_mask_jsonto():
+	assert _json_to_mask('0x00FFFFFF') == 24
+	assert _json_to_mask('0x000FFFFF') == 20
+	assert _json_to_mask('0x0000FFFF') == 16
+	assert _json_to_mask('0x000000FF') == 8
