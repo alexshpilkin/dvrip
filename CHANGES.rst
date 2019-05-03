@@ -1,12 +1,12 @@
 Changes
 =======
 
-Unreleased
-----------
+0.0.3 (2019-05-03)
+------------------
 
 * DVRs on the current network can now be listed with ``dvr neigh``.
   This command does not require a hostname.
-* All other commands, which do require a hostname, it should now be
+* For all other commands, which do require a hostname, it should now be
   passed using the ``-h`` option to ``dvr``.
 * Live video from camera N can now be obtained by passing ``monitor:N``
   to ``dvr cat``.  Append ``;hd`` or ``;sd`` to select the corresponding
