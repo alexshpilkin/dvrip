@@ -28,21 +28,21 @@ except ImportError:  # BSD value  # pragma: no cover
 # pylint: disable=too-many-branches,too-many-locals,too-many-statements
 
 
-def prog():
+def prog() -> str:
 	name = basename(argv[0])
 	return ('{} -m dvrip'.format(executable)
 	        if name in {'__main__.py', '-c'}
 	        else name)
 
 
-def ioerr(e, code=EX_IOERR):
+def ioerr(e: OSError, code: int = EX_IOERR) -> NoReturn:
 	message = ('{}: {}'.format(e.filename, e.strerror) \
 	           if e.filename is not None else e.strerror)
 	print(message, file=stderr)
 	exit(code)
 
 
-def resolve(host: str, port: str):
+def resolve(host: str, port: str) -> Tuple[str, int]:
 	try:
 		serv = int(port, base=0)
 	except ValueError:
@@ -72,11 +72,13 @@ def connect(address: Tuple[str, int], user: str, password: str) -> DVRIPClient:
 	return conn
 
 
+def info_usage() -> NoReturn:
+	print('Usage: {} info'.format(prog_connected()), file=stderr)
+	exit(EX_USAGE)
+
 def run_info(conn: DVRIPClient, args: List[str]) -> None:
 	if args:
-		print('Usage: {} ... info'.format(prog()),
-		      file=stderr)
-		exit(EX_USAGE)
+		info_usage()
 
 	info = conn.systeminfo()
 	line = [info.chassis, info.board, info.serial]
@@ -128,22 +130,25 @@ def run_info(conn: DVRIPClient, args: List[str]) -> None:
 	print(' '.join(line))  # status line
 
 
+def time_usage() -> NoReturn:
+	print('Usage: {} time [TIME]'.format(prog_connected()), file=stderr)
+	exit(EX_USAGE)
+
 def run_time(conn: DVRIPClient, args: List[str]) -> None:
 	from dateparser import parse as dateparse  # type: ignore
 
 	time = dateparse(args[0] if args else '1970-01-01')
 	if len(args) > 2 or time is None or time.tzinfo is not None:
-		print('Usage: {} ... time [TIME]'.format(prog()))
-		exit(EX_USAGE)
+		time_usage()
 
 	print((conn.time(time) if args else conn.time()).isoformat())
 
 
 def find_usage() -> NoReturn:
-	print('Usage: {} ... time -{{iv}} [-l] [-s START] [-e END] -c CHANNEL'
-	      .format(prog()))
+	print('Usage: {} find -{{i|v}} [-l] [-s START] [-e END] -c CHANNEL'
+	      .format(prog_connected()),
+	      file=stderr)
 	exit(EX_USAGE)
-
 
 def run_find(conn: DVRIPClient, args: List[str]) -> None:
 	from dateparser import parse as dateparse  # type: ignore
@@ -208,7 +213,7 @@ def run_find(conn: DVRIPClient, args: List[str]) -> None:
 
 
 def cat_usage() -> NoReturn:
-	print('Usage: {} ... cat {{NAME|CHANNEL}}'.format(prog()),
+	print('Usage: {} cat {{NAME|CHANNEL}}'.format(prog_connected()),
 	      file=stderr)
 	exit(EX_USAGE)
 
@@ -278,12 +283,14 @@ def run_neigh(args: List[str]) -> None:
 		ioerr(e)
 
 
+def prog_connected() -> str:
+	return '{} -h HOST [-p PORT] [-u USERNAME]'.format(prog())
+
+
 def usage() -> NoReturn:
-	print('Usage: {} [-h HOST] [-p PORT] [-u USERNAME] COMMAND ...'
+	print('Usage: {} [-h HOST] [-p PORT] [-u USERNAME] COMMAND ...\n'
+	      'where COMMAND is one of cat, find, info, neigh, reboot, or time'
 	      .format(prog()),
-	      file=stderr)
-	print(' where COMMAND is one of cat, find, info, neigh, reboot, or '
-	      'time',
 	      file=stderr)
 	exit(EX_USAGE)
 
@@ -319,7 +326,7 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 
 	if command == 'cat':
 		if host is None:
-			usage()
+			cat_usage()
 		assert password is not None
 		addr = resolve(host, port)
 		sock = Socket(AF_INET, SOCK_STREAM)
@@ -334,7 +341,7 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 			conn.logout()
 	elif command == 'neigh':
 		if host is not None:
-			usage()
+			neigh_usage()
 		run_neigh(args)
 	elif command == 'info':
 		if host is None:
@@ -347,7 +354,7 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 			conn.logout()
 	elif command == 'find':
 		if host is None:
-			usage()
+			find_usage()
 		assert password is not None
 		conn = connect(resolve(host, port), username, password)
 		try:
@@ -355,14 +362,16 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 		finally:
 			conn.logout()
 	elif command == 'reboot':
-		if host is None:
-			usage()
+		if host is None or args:
+			print('Usage: {} reboot'.format(prog_connected()),
+			      file=stderr)
+			exit(EX_USAGE)
 		assert password is not None
 		conn = connect(resolve(host, port), username, password)
 		conn.reboot()
 	elif command == 'time':
 		if host is None:
-			usage()
+			time_usage()
 		assert password is not None
 		conn = connect(resolve(host, port), username, password)
 		try:
