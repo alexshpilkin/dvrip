@@ -28,13 +28,6 @@ except ImportError:  # BSD value  # pragma: no cover
 # pylint: disable=too-many-branches,too-many-locals,too-many-statements
 
 
-def prog() -> str:
-	name = basename(argv[0])
-	return ('{} -m dvrip'.format(executable)
-	        if name in {'__main__.py', '-c'}
-	        else name)
-
-
 def ioerr(e: OSError, code: int = EX_IOERR) -> NoReturn:
 	message = ('{}: {}'.format(e.filename, e.strerror) \
 	           if e.filename is not None else e.strerror)
@@ -70,6 +63,41 @@ def connect(address: Tuple[str, int], user: str, password: str) -> DVRIPClient:
 	except OSError as e:
 		ioerr(e)
 	return conn
+
+
+def cat_usage() -> NoReturn:
+	print('Usage: {} cat {{NAME|CHANNEL}}'.format(prog_connected()),
+	      file=stderr)
+	exit(EX_USAGE)
+
+def run_cat(conn: DVRIPClient, sock: Socket, args: List[str]) -> None:
+	if len(args) != 1:
+		cat_usage()
+
+	name, = args
+	if name.startswith('/'):
+		reader = lambda: conn.download(sock, name)
+	elif name.startswith('monitor:'):
+		if ';' not in name:
+			name += ';hd'
+		chanstr, strstr = name[len('monitor:'):].split(';', 1)
+		try:
+			channel = int(chanstr, base=0)
+		except ValueError:
+			cat_usage()
+		try:
+			stream = Stream[strstr.upper()]
+		except KeyError:
+			cat_usage()
+		reader = lambda: conn.monitor(sock, channel, stream)
+	try:
+		file = reader()
+		try:
+			copyfileobj(file, stdout.buffer, length=256)
+		except (BrokenPipeError, KeyboardInterrupt):
+			pass
+	finally:
+		sock.close()
 
 
 def info_usage() -> NoReturn:
@@ -128,20 +156,6 @@ def run_info(conn: DVRIPClient, args: List[str]) -> None:
 	if len(line) <= 3:
 		line.append('none')
 	print(' '.join(line))  # status line
-
-
-def time_usage() -> NoReturn:
-	print('Usage: {} time [TIME]'.format(prog_connected()), file=stderr)
-	exit(EX_USAGE)
-
-def run_time(conn: DVRIPClient, args: List[str]) -> None:
-	from dateparser import parse as dateparse  # type: ignore
-
-	time = dateparse(args[0] if args else '1970-01-01')
-	if len(args) > 2 or time is None or time.tzinfo is not None:
-		time_usage()
-
-	print((conn.time(time) if args else conn.time()).isoformat())
 
 
 def find_usage() -> NoReturn:
@@ -212,41 +226,6 @@ def run_find(conn: DVRIPClient, args: List[str]) -> None:
 			print(file.name)
 
 
-def cat_usage() -> NoReturn:
-	print('Usage: {} cat {{NAME|CHANNEL}}'.format(prog_connected()),
-	      file=stderr)
-	exit(EX_USAGE)
-
-def run_cat(conn: DVRIPClient, sock: Socket, args: List[str]) -> None:
-	if len(args) != 1:
-		cat_usage()
-
-	name, = args
-	if name.startswith('/'):
-		reader = lambda: conn.download(sock, name)
-	elif name.startswith('monitor:'):
-		if ';' not in name:
-			name += ';hd'
-		chanstr, strstr = name[len('monitor:'):].split(';', 1)
-		try:
-			channel = int(chanstr, base=0)
-		except ValueError:
-			cat_usage()
-		try:
-			stream = Stream[strstr.upper()]
-		except KeyError:
-			cat_usage()
-		reader = lambda: conn.monitor(sock, channel, stream)
-	try:
-		file = reader()
-		try:
-			copyfileobj(file, stdout.buffer, length=256)
-		except (BrokenPipeError, KeyboardInterrupt):
-			pass
-	finally:
-		sock.close()
-
-
 def neigh_usage() -> NoReturn:
 	print('Usage: {} neigh'.format(prog()), file=stderr)
 	exit(EX_USAGE)
@@ -283,13 +262,32 @@ def run_neigh(args: List[str]) -> None:
 		ioerr(e)
 
 
+def time_usage() -> NoReturn:
+	print('Usage: {} time [TIME]'.format(prog_connected()), file=stderr)
+	exit(EX_USAGE)
+
+def run_time(conn: DVRIPClient, args: List[str]) -> None:
+	from dateparser import parse as dateparse  # type: ignore
+
+	time = dateparse(args[0] if args else '1970-01-01')
+	if len(args) > 2 or time is None or time.tzinfo is not None:
+		time_usage()
+
+	print((conn.time(time) if args else conn.time()).isoformat())
+
+
+def prog() -> str:
+	name = basename(argv[0])
+	return ('{} -m dvrip'.format(executable)
+	        if name in {'__main__.py', '-c'}
+	        else name)
+
 def prog_connected() -> str:
 	return '{} -h HOST [-p PORT] [-u USERNAME]'.format(prog())
 
-
 def usage() -> NoReturn:
 	print('Usage: {} [-h HOST] [-p PORT] [-u USERNAME] COMMAND ...\n'
-	      'where COMMAND is one of cat, find, info, neigh, reboot, or time'
+	      '       COMMAND is one of cat, find, info, neigh, reboot, or time'
 	      .format(prog()),
 	      file=stderr)
 	exit(EX_USAGE)
@@ -339,10 +337,6 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 			run_cat(conn, sock, args)
 		finally:
 			conn.logout()
-	elif command == 'neigh':
-		if host is not None:
-			neigh_usage()
-		run_neigh(args)
 	elif command == 'info':
 		if host is None:
 			usage()
@@ -361,6 +355,10 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 			run_find(conn, args)
 		finally:
 			conn.logout()
+	elif command == 'neigh':
+		if host is not None:
+			neigh_usage()
+		run_neigh(args)
 	elif command == 'reboot':
 		if host is None or args:
 			print('Usage: {} reboot'.format(prog_connected()),
