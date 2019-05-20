@@ -15,7 +15,7 @@ class File(Object):
 	end:    member[Optional[datetime]] = member('EndTime', datetimetype)
 
 
-class GetFileReply(Object, Message):
+class GetFilesReply(Object, Message):
 	type = 1441
 
 	status:  member[Status]  = member('Ret')
@@ -38,9 +38,9 @@ class FileQuery(Object):
 	type:    member[FileType] = member('Type')
 
 
-class GetFile(Object, Request):
+class GetFiles(Object, Request):
 	type = 1440
-	reply = GetFileReply
+	reply = GetFilesReply
 
 	command:   fixedmember       = fixedmember('Name', 'OPFileQuery')
 	session:   member[Session]   = member('SessionID')

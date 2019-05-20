@@ -6,6 +6,7 @@ from typing import Iterable, Optional, MutableSequence, TypeVar, Union
 
 from .discover import DiscoverReply, Host
 from .errors import DVRIPDecodeError, DVRIPRequestError
+from .files import GetFiles, FileQuery
 from .info import ActivityInfo, GetInfo, Info, StorageInfo, SystemInfo
 from .log import GetLog, LogQuery
 from .login import ClientLogin, ClientLogout, Hash
@@ -17,7 +18,6 @@ from .operation import GetTime, Machine, MachineOperation, Operation, \
 from .packet import Packet
 from .playback import DoPlayback, Playback, PlaybackAction, PlaybackClaim, \
                       PlaybackParams
-from .search import GetFile, FileQuery
 
 __all__ = ('DVRIPConnection', 'DVRIPClient', 'DVRIPServer')
 
@@ -219,12 +219,12 @@ class DVRIPClient(DVRIPConnection):
 			yield from entries
 			offset = entries[-1].number + 1
 
-	def search(self, start, **kwargs):
+	def files(self, start, **kwargs):
 		last = None
 		while True:
-			request = GetFile(session=self.session,
-				          filequery=FileQuery(start=start,
-				                              **kwargs))
+			request = GetFiles(session=self.session,
+				           filequery=FileQuery(start=start,
+				                               **kwargs))
 			reply = self.request(request)
 			if reply.files is NotImplemented:
 				return

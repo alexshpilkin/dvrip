@@ -11,10 +11,10 @@ from socket import AF_INET, SOCK_STREAM, socket as Socket, gethostbyname, \
 from sys import argv, executable, exit, stderr, stdout  # pylint: disable=redefined-builtin
 from typing import List, NoReturn, Tuple
 from .errors import DVRIPDecodeError, DVRIPRequestError
+from .files import FileType
 from .io import DVRIPClient
 from .message import EPOCH
 from .monitor import Stream
-from .search import FileType
 
 try:
 	# pylint: disable=ungrouped-imports
@@ -210,10 +210,10 @@ def run_find(conn: DVRIPClient, args: List[str]) -> None:
 	if end is None:
 		end = datetime.now()
 
-	for file in conn.search(start=start,
-	                        end=end,
-	                        channel=channel,
-	                        type=filetype):
+	for file in conn.files(start=start,
+	                       end=end,
+	                       channel=channel,
+	                       type=filetype):
 		if long:
 			print('{} {} {} {} {:>8} {}'
 			      .format(file.disk, file.part,

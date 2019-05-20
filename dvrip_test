@@ -6,7 +6,7 @@ from socket import AF_INET, SOCK_STREAM, socket as Socket
 from sys import argv, stderr
 from dvrip import DVRIP_PORT
 from dvrip.io import DVRIPClient
-from dvrip.search import FileType
+from dvrip.files import FileType
 from dvrip.monitor import *
 
 
@@ -35,10 +35,10 @@ print(conn.systeminfo())
 print(conn.storageinfo())
 print(conn.time(conn.time() - timedelta(seconds=0)))
 now = datetime.now()
-print(list(conn.search(start=now - timedelta(hours=5),
-                       end=now,
-                       channel=0,
-                       type=FileType.VIDEO)))
+print(list(conn.files(start=now - timedelta(hours=5),
+                      end=now,
+                      channel=0,
+                      type=FileType.VIDEO)))
 entries = list(conn.log(start=now - timedelta(hours=5), end=now))
 for p in set((e.type, e._data) for e in entries):
 	print(p)
