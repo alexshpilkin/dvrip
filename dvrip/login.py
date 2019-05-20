@@ -7,10 +7,7 @@ from .errors  import DVRIPDecodeError
 from .typing  import Object, fixedmember, for_json, json_to, member, \
                      optionalmember
 
-__all__ = ('xmmd5', 'Hash', 'ClientLoginReply', 'ClientLogin',
-           'ClientLogoutReply', 'ClientLogout')
-
-H = TypeVar('H', bound='Hash')
+_H = TypeVar('_H', bound='Hash')
 
 
 _XMMD5MAGIC = (digits + ascii_uppercase + ascii_lowercase)
@@ -44,7 +41,7 @@ class Hash(Enum):
 		return for_json(self.id)
 
 	@classmethod
-	def json_to(cls: Type[H], datum: object) -> H:
+	def json_to(cls: Type[_H], datum: object) -> _H:
 		try:
 			return cls(json_to(str)(datum))  # type: ignore  # pylint: disable=no-value-for-parameter
 		except ValueError:

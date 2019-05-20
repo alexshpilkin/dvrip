@@ -11,15 +11,11 @@ from .errors import DVRIPDecodeError
 from .packet import Packet
 from .typing import Value, for_json, json_to
 
-__all__ = ('hextype', 'EPOCH', 'RESOLUTION', 'datetimetype', 'Choice',
-           'Session', 'Status', 'Message', 'Filter', 'controlfilter',
-           'streamfilter', 'Request')
-
-C = TypeVar('C', bound='Choice')
-M = TypeVar('M', bound='Message')
-R = TypeVar('R', bound='Status')
-S = TypeVar('S', bound='Session')
-T = TypeVar('T')
+_C = TypeVar('_C', bound='Choice')
+_M = TypeVar('_M', bound='Message')
+_R = TypeVar('_R', bound='Status')
+_S = TypeVar('_S', bound='Session')
+_T = TypeVar('_T')
 
 
 class _ChunkReader(RawIOBase):
@@ -99,7 +95,7 @@ class Choice(Enum):
 		return for_json(self.value)
 
 	@classmethod
-	def json_to(cls: Type[C], datum: object) -> C:
+	def json_to(cls: Type[_C], datum: object) -> _C:
 		try:
 			return cls(json_to(str)(datum))
 		except ValueError:
@@ -127,7 +123,7 @@ class Session(object):
 		return _hex_for_json(self.id)
 
 	@classmethod
-	def json_to(cls: Type[S], datum: object) -> S:
+	def json_to(cls: Type[_S], datum: object) -> _S:
 		return cls(id=_json_to_hex(datum))
 
 
@@ -138,7 +134,7 @@ class Status(Enum):
 	success: bool
 	message: str
 
-	def __new__(cls: Type[R], code, success, message) -> R:
+	def __new__(cls: Type[_R], code, success, message) -> _R:
 		self = object.__new__(cls)
 		self._value_ = code  # pylint: disable=protected-access
 		self.code    = code
@@ -159,7 +155,7 @@ class Status(Enum):
 		return for_json(self.code)
 
 	@classmethod
-	def json_to(cls: Type[R], datum: object) -> R:
+	def json_to(cls: Type[_R], datum: object) -> _R:
 		try:
 			return cls(json_to(int)(datum))  # type: ignore  # pylint: disable=no-value-for-parameter
 		except ValueError:
@@ -249,7 +245,7 @@ class Message(Value):
 				             fragment=i)
 
 	@classmethod
-	def fromchunks(cls: Type[M], chunks: Iterable[bytes]) -> M:
+	def fromchunks(cls: Type[_M], chunks: Iterable[bytes]) -> _M:
 		chunks = list(chunks)
 		if not chunks:
 			raise DVRIPDecodeError('no data in DVRIP packet')
@@ -257,15 +253,15 @@ class Message(Value):
 		return cls.json_to(load(_ChunkReader(chunks)))  # type: ignore # FIXME
 
 	@classmethod
-	def frompackets(cls: Type[M], packets: Iterable[Packet]) -> M:
+	def frompackets(cls: Type[_M], packets: Iterable[Packet]) -> _M:
 		packets = list(packets)
 		return cls.fromchunks(p.payload for p in packets if p.payload)
 
 
-Filter = Generator[Union['NotImplemented', None, T], Optional[Packet], None]
+Filter = Generator[Union['NotImplemented', None, _T], Optional[Packet], None]
 
 
-def controlfilter(cls: Type[M], number: int) -> Filter[M]:
+def controlfilter(cls: Type[_M], number: int) -> Filter[_M]:
 	count = 0
 	limit = 0
 	packets: List[Optional[Packet]] = []
@@ -313,12 +309,12 @@ def streamfilter(type: int) -> Filter[Union[bytes, bytearray, memoryview]]:  # p
 		packet = yield None
 
 
-class Request(Generic[M], Message):
-	reply: ClassVar[Type[M]]
+class Request(Generic[_M], Message):
+	reply: ClassVar[Type[_M]]
 	data:  ClassVar[int]
 
 	@classmethod
-	def replies(cls, number: int) -> Filter[M]:
+	def replies(cls, number: int) -> Filter[_M]:
 		return controlfilter(cls.reply, number)
 
 	@classmethod

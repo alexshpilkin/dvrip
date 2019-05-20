@@ -13,14 +13,10 @@ from .errors import DVRIPDecodeError
 if TYPE_CHECKING:  # pragma: no cover
 	from typing_extensions import Protocol, runtime
 
-__all__ = ('Value', 'for_json', 'json_to', 'jsontype', 'EnumValueMeta',
-           'EnumValue', 'Member', 'member', 'optionalmember', 'absentmember',
-           'ObjectMeta', 'Object')
-
-T = TypeVar('T')
-V = TypeVar('V', bound='Union[None, bool, int, str, list, Dict[str, Any], '
-                             'Value]')
-O = TypeVar('O', bound='Object')
+_T = TypeVar('_T')
+_V = TypeVar('_V', bound='Union[None, bool, int, str, list, Dict[str, Any], '
+                               'Value]')
+_O = TypeVar('_O', bound='Object')
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -32,7 +28,7 @@ if TYPE_CHECKING:  # pragma: no cover
 			...
 
 		@classmethod
-		def json_to(cls: Type[V], datum: object) -> V:
+		def json_to(cls: Type[_V], datum: object) -> _V:
 			...
 
 else:
@@ -45,7 +41,7 @@ else:
 
 		@classmethod
 		@abstractmethod
-		def json_to(cls: Type[V], datum: object) -> V:
+		def json_to(cls: Type[_V], datum: object) -> _V:
 			raise NotImplementedError  # pragma: no cover
 
 		@classmethod
@@ -64,7 +60,7 @@ else:
 			return True
 
 
-def for_json(obj: V.__bound__) -> object:  # pylint: disable=no-member
+def for_json(obj: _V.__bound__) -> object:  # pylint: disable=no-member
 	try:
 		return obj.for_json()
 	except AttributeError:
@@ -79,7 +75,7 @@ def for_json(obj: V.__bound__) -> object:  # pylint: disable=no-member
 		raise TypeError('not a JSON value')
 
 
-def json_to(type: Type[V]) -> Callable[[object], V]:  # pylint: disable=redefined-builtin, too-many-return-statements
+def json_to(type: Type[_V]) -> Callable[[object], _V]:  # pylint: disable=redefined-builtin, too-many-return-statements
 	try:
 		return type.json_to  # type: ignore
 	except AttributeError:
@@ -121,27 +117,27 @@ def _json_to_str(datum: object) -> str:
 	return str(datum)
 
 
-def _json_to_optional(arg: Type[V]) -> Callable[[object], Optional[V]]:
+def _json_to_optional(arg: Type[_V]) -> Callable[[object], Optional[_V]]:
 	_json_to = json_to(arg)
-	def _json_tooptional(datum: object) -> Optional[V]:
+	def _json_tooptional(datum: object) -> Optional[_V]:
 		if datum is None:
 			return None
 		return _json_to(datum)
 	return _json_tooptional
 
 
-def _json_to_list(arg: Type[V]) -> Callable[[object], List[V]]:
+def _json_to_list(arg: Type[_V]) -> Callable[[object], List[_V]]:
 	_json_to = json_to(arg)
-	def _json_tolist(datum: object) -> List[V]:
+	def _json_tolist(datum: object) -> List[_V]:
 		if not isinstance(datum, list):
 			raise DVRIPDecodeError('not an array')
 		return [_json_to(item) for item in datum]
 	return _json_tolist
 
 
-def _json_to_dict(arg: Type[V]) -> Callable[[object], Dict[str, V]]:
+def _json_to_dict(arg: Type[_V]) -> Callable[[object], Dict[str, _V]]:
 	_json_to = json_to(arg)
-	def _json_todict(datum: object) -> Dict[str, V]:
+	def _json_todict(datum: object) -> Dict[str, _V]:
 		if not isinstance(datum, dict):
 			raise DVRIPDecodeError('not an object')
 		return {_json_to_str(key): _json_to(value)
@@ -163,7 +159,7 @@ class EnumValue(Value, Enum, metaclass=EnumValueMeta):  # pylint: disable=abstra
 
 if TYPE_CHECKING:  # pragma: no cover
 	@runtime
-	class Member(Generic[T], Protocol):
+	class Member(Generic[_T], Protocol):
 		# pylint: disable=no-self-use,unused-argument
 		name: str
 
@@ -172,15 +168,15 @@ if TYPE_CHECKING:  # pragma: no cover
 
 		def push(self,
 		         push: Callable[[str, object], None],
-		         value: T
+		         value: _T
 		        ) -> None:
 			...
 
-		def pop(self, pop: Callable[[str], object]) -> T:
+		def pop(self, pop: Callable[[str], object]) -> _T:
 			...
 
 else:
-	class Member(Generic[T], metaclass=ABCMeta):
+	class Member(Generic[_T], metaclass=ABCMeta):
 		__slots__ = ('name',)
 
 		def __init__(self):
@@ -192,12 +188,12 @@ else:
 		@abstractmethod
 		def push(self,
 			 push: Callable[[str, object], None],
-			 value: T
+			 value: _T
 			) -> None:
 			pass
 
 		@abstractmethod
-		def pop(self, pop: Callable[[str], object]) -> T:
+		def pop(self, pop: Callable[[str], object]) -> _T:
 			raise NotImplementedError  # pragma: no cover
 
 		@classmethod
@@ -257,20 +253,20 @@ class fixedmember(Member[object]):
 		return self.default
 
 
-class AttributeMember(Member[T]):
+class AttributeMember(Member[_T]):
 	__slots__ = ()
 
-	def __get__(self, obj: 'Object', _type: type) -> T:
+	def __get__(self, obj: 'Object', _type: type) -> _T:
 		if obj is None:
 			return self
 		return getattr(obj._values_, self.name)  # pylint: disable=protected-access
 
-	def __set__(self, obj: 'Object', value: T) -> None:
+	def __set__(self, obj: 'Object', value: _T) -> None:
 		return setattr(obj._values_, self.name, value)  # pylint: disable=protected-access
 
 
 # NotImplemented is not allowed as a type, see python/mypy#4791
-class absentmember(AttributeMember[Union['NotImplemented', T]]):
+class absentmember(AttributeMember[Union['NotImplemented', _T]]):
 	__slots__ = ()
 	default   = NotImplemented
 
@@ -283,15 +279,15 @@ class absentmember(AttributeMember[Union['NotImplemented', T]]):
 		return NotImplemented
 
 
-class member(AttributeMember[T]):
+class member(AttributeMember[_T]):
 	__slots__ = ('key', 'pipe', 'json_to', 'for_json')
 	# Pylint incorrectly reports assignments below due to PyCQA/pylint#2807
 	# pylint: disable=assigning-non-slot
 
 	def __init__(self,
 	             key:    str,
-	             conv:   Optional[Tuple[Callable[[Any], T],
-	                                    Callable[[T], Any]]]
+	             conv:   Optional[Tuple[Callable[[Any], _T],
+	                                    Callable[[_T], Any]]]
 	                     = None,
 	             *args:  Tuple[Callable[[Any], Any],
 	                           Callable[[Any], Any]],
@@ -301,8 +297,8 @@ class member(AttributeMember[T]):
 			self.pipe = (conv, *args)
 		else:
 			self.pipe = ()
-		self.json_to:  Callable[[object], T]
-		self.for_json: Callable[[T], object]
+		self.json_to:  Callable[[object], _T]
+		self.for_json: Callable[[_T], object]
 
 	def __set_name__(self, cls: 'ObjectMeta', name: str) -> None:
 		super().__set_name__(cls, name)
@@ -327,7 +323,7 @@ class member(AttributeMember[T]):
 		return self.json_to(pop(self.key))
 
 
-class optionalmember(member[Union['NotImplemented', T]]):
+class optionalmember(member[Union['NotImplemented', _T]]):
 	default = NotImplemented
 
 	def push(self, push, value):
@@ -484,7 +480,7 @@ class Object(Value, metaclass=ObjectMeta):
 		return self._for_json_()
 
 	@classmethod
-	def json_to(cls: Type[O], datum: object) -> O:
+	def json_to(cls: Type[_O], datum: object) -> _O:
 		return cls._json_to_(datum)  # type: ignore
 
 	@staticmethod
