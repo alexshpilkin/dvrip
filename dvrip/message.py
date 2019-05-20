@@ -4,23 +4,31 @@ from enum import Enum, unique
 from io import RawIOBase
 from json import dumps, load
 from string import hexdigits
-from typing import Optional
+from typing import ClassVar, Generator, Generic, Iterable, List, Optional, \
+                   Sequence, Type, TypeVar, Union, cast
 from .errors import DVRIPDecodeError
 from .packet import Packet
 from .typing import Value, for_json, json_to
 
-__all__ = ('hextype', 'datetimetype', 'Choice', 'Session', 'Status',
-           'ControlMessage', 'controlfilter', 'streamfilter', 'ControlRequest')
+__all__ = ('hextype', 'EPOCH', 'RESOLUTION', 'datetimetype', 'Choice',
+           'Session', 'Status', 'ControlMessage', 'Filter', 'controlfilter',
+           'streamfilter', 'ControlRequest')
+
+C = TypeVar('C', bound='Choice')
+M = TypeVar('M', bound='ControlMessage')
+R = TypeVar('R', bound='Status')
+S = TypeVar('S', bound='Session')
+T = TypeVar('T')
 
 
 class _ChunkReader(RawIOBase):
-	def __init__(self, chunks):
+	def __init__(self, chunks: Iterable[bytes]) -> None:
 		super().__init__()
 		self.chunks = list(chunks)
 		self.chunks.reverse()
-	def readable(self):
+	def readable(self) -> bool:
 		return True
-	def readinto(self, buffer):
+	def readinto(self, buffer: bytearray) -> int:
 		if not self.chunks:
 			return 0  # EOF
 		chunk = self.chunks[-1]
@@ -80,17 +88,17 @@ datetimetype = (_json_to_datetime, _datetime_for_json)
 
 
 class Choice(Enum):
-	def __repr__(self):
+	def __repr__(self) -> str:
 		return '{}.{}'.format(type(self).__qualname__, self.name)
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return self.value
 
-	def for_json(self):
+	def for_json(self) -> object:
 		return for_json(self.value)
 
 	@classmethod
-	def json_to(cls, datum):
+	def json_to(cls: Type[C], datum: object) -> C:
 		try:
 			return cls(json_to(str)(datum))
 		except ValueError:
@@ -100,33 +108,36 @@ class Choice(Enum):
 class Session(object):
 	__slots__ = ('id',)
 
-	def __init__(self, id):  # pylint: disable=redefined-builtin
+	def __init__(self, id: int) -> None:  # pylint: disable=redefined-builtin
 		self.id = id
 
-	def __repr__(self):
+	def __repr__(self) -> str:
 		return 'Session(0x{:08X})'.format(self.id)
 
-	def __eq__(self, other):
+	def __eq__(self, other: object):
 		if not isinstance(other, Session):
 			return NotImplemented
 		return self.id == other.id
 
-	def __hash__(self):
+	def __hash__(self) -> int:
 		return hash(self.id)
 
-	def for_json(self):
+	def for_json(self) -> object:
 		return _hex_for_json(self.id)
 
 	@classmethod
-	def json_to(cls, datum):
+	def json_to(cls: Type[S], datum: object) -> S:
 		return cls(id=_json_to_hex(datum))
 
 
 @unique
 class Status(Enum):
 	__slots__ = ('code', 'success', 'message', '_value_')
+	code:    int
+	success: bool
+	message: str
 
-	def __new__(cls, code, success, message):
+	def __new__(cls: Type[R], code, success, message) -> R:
 		self = object.__new__(cls)
 		self._value_ = code  # pylint: disable=protected-access
 		self.code    = code
@@ -134,22 +145,22 @@ class Status(Enum):
 		self.message = message
 		return self
 
-	def __repr__(self):
+	def __repr__(self) -> str:
 		return '{}({!r})'.format(type(self).__qualname__, self._value_)
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return self.message
 
-	def __bool__(self):
+	def __bool__(self) -> bool:
 		return self.success
 
-	def for_json(self):
+	def for_json(self) -> object:
 		return for_json(self.code)
 
 	@classmethod
-	def json_to(cls, datum):
+	def json_to(cls: Type[R], datum: object) -> R:
 		try:
-			return cls(json_to(int)(datum))  # pylint: disable=no-value-for-parameter
+			return cls(json_to(int)(datum))  # type: ignore  # pylint: disable=no-value-for-parameter
 		except ValueError:
 			raise DVRIPDecodeError('not a known status code')
 
@@ -216,15 +227,15 @@ class ControlMessage(Value):
 
 	@property
 	@abstractmethod
-	def type(self):
+	def type(self) -> int:
 		raise NotImplementedError  # pragma: no cover
 
-	def chunks(self):
+	def chunks(self) -> Sequence[bytes]:
 		size = Packet.MAXLEN  # FIXME Don't mention Packet explicitly?
 		json = dumps(self.for_json()).encode('ascii')
 		return [json[i:i+size] for i in range(0, len(json), size)]
 
-	def topackets(self, session, number):
+	def topackets(self, session: Session, number: int) -> Iterable[Packet]:
 		chunks = self.chunks()
 		length = len(chunks)
 		if length == 1:
@@ -237,25 +248,28 @@ class ControlMessage(Value):
 				             fragment=i)
 
 	@classmethod
-	def fromchunks(cls, chunks):
+	def fromchunks(cls: Type[M], chunks: Iterable[bytes]) -> M:
 		chunks = list(chunks)
 		if not chunks:
 			raise DVRIPDecodeError('no data in DVRIP packet')
 		chunks[-1] = chunks[-1].rstrip(b'\x00\\')
-		return cls.json_to(load(_ChunkReader(chunks)))
+		return cls.json_to(load(_ChunkReader(chunks)))  # type: ignore # FIXME
 
 	@classmethod
-	def frompackets(cls, packets):
+	def frompackets(cls: Type[M], packets: Iterable[Packet]) -> M:
 		packets = list(packets)
 		return cls.fromchunks(p.payload for p in packets if p.payload)
 
 
-def controlfilter(cls, number):
-	count   = 0
-	limit   = 0
-	packets = []
+Filter = Generator[Union['NotImplemented', None, T], Packet, None]
 
-	packet = yield  # prime the pump
+
+def controlfilter(cls: Type[M], number: int) -> Filter[M]:
+	count = 0
+	limit = 0
+	packets: List[Optional[Packet]] = []
+
+	packet = yield None  # prime the pump
 	while True:
 		if packet.type != cls.type:
 			packet = yield NotImplemented; continue
@@ -276,38 +290,33 @@ def controlfilter(cls, number):
 		count += 1
 		if count < limit:
 			yield None
-			packet = yield
+			packet = yield None
 			continue
 		else:
-			yield cls.frompackets(packets)
+			assert all(p is not None for p in packets)
+			yield cls.frompackets(cast(List[Packet], packets))
 			return
 
 
-def streamfilter(type):  # pylint: disable=redefined-builtin
-	packet = yield  # prime the pump
+def streamfilter(type: int) -> Filter[Sequence[int]]:  # pylint: disable=redefined-builtin
+	packet = yield None  # prime the pump
 	while True:
 		if packet.type != type:
 			packet = yield NotImplemented
 			continue
 		yield packet.payload if packet.payload else None
 		if packet.end: return
-		packet = yield
+		packet = yield None
 
 
-class ControlRequest(ControlMessage):
-	@property
-	@abstractmethod
-	def reply(self):
-		raise NotImplementedError  # pragma: no cover
-
-	@property
-	def data(self):
-		raise NotImplementedError  # pragma: no cover
+class ControlRequest(Generic[M], ControlMessage):
+	reply: ClassVar[Type[M]]
+	data:  ClassVar[int]
 
 	@classmethod
-	def replies(cls, number):
+	def replies(cls, number: int) -> Filter[M]:
 		return controlfilter(cls.reply, number)
 
 	@classmethod
-	def stream(cls):
+	def stream(cls) -> Filter[Sequence[int]]:
 		return streamfilter(cls.data)
