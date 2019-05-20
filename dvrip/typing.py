@@ -6,7 +6,8 @@ from sys import intern
 from typing import Any, Callable, Dict, Generic, List, MutableMapping, \
                    Optional, Tuple, TYPE_CHECKING, Type, TypeVar, Union, \
                    get_type_hints
-from typing_inspect import is_generic_type, get_origin, get_args  # type: ignore
+from typing_inspect import get_origin, get_args, is_generic_type  # type: ignore
+from typing_inspect import is_optional_type  # type: ignore
 from .errors import DVRIPDecodeError
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -17,7 +18,8 @@ __all__ = ('Value', 'for_json', 'json_to', 'jsontype', 'EnumValueMeta',
            'ObjectMeta', 'Object')
 
 T = TypeVar('T')
-V = TypeVar('V', bound='Union[bool, int, str, list, Dict[str, Any], Value]')
+V = TypeVar('V', bound='Union[None, bool, int, str, list, Dict[str, Any], '
+                             'Value]')
 O = TypeVar('O', bound='Object')
 
 
@@ -68,6 +70,8 @@ def for_json(obj: V.__bound__) -> object:  # pylint: disable=no-member
 	except AttributeError:
 		if isinstance(obj, (bool, int, str)):
 			return obj
+		if obj is None:
+			return None
 		if isinstance(obj, Sequence):
 			return list(obj)
 		if isinstance(obj, Mapping):
@@ -75,10 +79,12 @@ def for_json(obj: V.__bound__) -> object:  # pylint: disable=no-member
 		raise TypeError('not a JSON value')
 
 
-def json_to(type: Type[V]) -> Callable[[object], V]:  # pylint: disable=redefined-builtin
+def json_to(type: Type[V]) -> Callable[[object], V]:  # pylint: disable=redefined-builtin, too-many-return-statements
 	try:
 		return type.json_to  # type: ignore
 	except AttributeError:
+		if is_optional_type(type):  # needs to come before 'issubclass'
+			return _json_to_optional(get_args(type)[0])  # type: ignore
 		if is_generic_type(type):  # needs to come before 'issubclass'
 			if get_origin(type) == list:
 				return _json_to_list(get_args(type)[0])  # type: ignore
@@ -113,6 +119,15 @@ def _json_to_str(datum: object) -> str:
 	if not isinstance(datum, str):
 		raise DVRIPDecodeError('not a string')
 	return str(datum)
+
+
+def _json_to_optional(arg: Type[V]) -> Callable[[object], Optional[V]]:
+	_json_to = json_to(arg)
+	def _json_tooptional(datum: object) -> Optional[V]:
+		if datum is None:
+			return None
+		return _json_to(datum)
+	return _json_tooptional
 
 
 def _json_to_list(arg: Type[V]) -> Callable[[object], List[V]]:
@@ -271,6 +286,7 @@ class absentmember(AttributeMember[Union['NotImplemented', T]]):
 class member(AttributeMember[T]):
 	__slots__ = ('key', 'pipe', 'json_to', 'for_json')
 	# Pylint incorrectly reports assignments below due to PyCQA/pylint#2807
+	# pylint: disable=assigning-non-slot
 
 	def __init__(self,
 	             key:    str,

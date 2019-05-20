@@ -1,11 +1,11 @@
 from enum import IntEnum
 from hypothesis import given
 from hypothesis.strategies import binary, booleans, dictionaries, integers, \
-                                  lists, sampled_from, text
+                                  lists, none, sampled_from, text
 from pytest import raises  # type: ignore
 from string import hexdigits
-from typing import Callable, Dict, List, SupportsBytes, Type, TypeVar, \
-                   no_type_check
+from typing import Callable, Dict, List, Optional, SupportsBytes, Type, \
+                   TypeVar, no_type_check
 
 from dvrip.errors import DVRIPDecodeError
 from dvrip.typing import EnumValue, Member, Object, Value, absentmember, \
@@ -107,6 +107,22 @@ def test_str_forjson_jsonto(s):
 @given(text())
 def test_str_jsonto_forjson(s):
 	assert for_json(json_to(str)(s)) == s
+
+@given(none() | integers())
+def test_optional_forjson(o):
+	assert for_json(o) == o
+
+@given(none() | integers())
+def test_optional_jsonto(o):
+	assert json_to(Optional[int])(o) == o
+
+@given(none() | integers())
+def test_optional_forjson_jsonto(o):
+	assert json_to(Optional[int])(for_json(o)) == o
+
+@given(none() | integers())
+def test_optional_jsonto_forjson(o):
+	assert for_json(json_to(Optional[int])(o)) == o
 
 @given(lists(integers()))
 def test_list_forjson(l):
