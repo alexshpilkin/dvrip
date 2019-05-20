@@ -6,16 +6,18 @@ from .message import Choice, ControlMessage, ControlRequest, Session, Status, \
 from .typing  import Object, absentmember, for_json, json_to, member, \
                      optionalmember
 
-__all__ = ('Info', 'SystemInfo', 'GetInfoReply', 'GetInfo')
+__all__ = ('Info', 'SystemInfo', 'PartitionInfo', 'DiskInfo', 'StorageInfo',
+           'TriggerInfo', 'ChannelInfo', 'ActivityInfo', 'GetInfoReply',
+           'GetInfo')
 
 
 _json_to_str = json_to(str)
 
-def _json_to_version(datum):
+def _json_to_version(datum: object) -> Optional[str]:
 	datum = _json_to_str(datum)
 	return None if datum == 'Unknown' else datum
 
-def _version_for_json(value):
+def _version_for_json(value: Optional[str]) -> object:
 	if value == 'Unknown':
 		raise ValueError("argument must not be 'Unknown'")
 	return for_json('Unknown' if value is None else value)
@@ -35,10 +37,10 @@ class SystemInfo(Object):
 	triggerin:   member[int] = member('AlarmInChannel')
 	triggerout:  member[int] = member('AlarmOutChannel')
 	build:       member[Optional[datetime]] = member('BuildTime', datetimetype)
-	eeprom:      member[str] = member('EncryptVersion', _versiontype)
-	hardware:    member[str] = member('HardWareVersion', _versiontype)
+	eeprom:      member[Optional[str]] = member('EncryptVersion', _versiontype)
+	hardware:    member[Optional[str]] = member('HardWareVersion', _versiontype)
 	serial:      member[str] = member('SerialNo')
-	software:    member[str] = member('SoftWareVersion', _versiontype)
+	software:    member[Optional[str]] = member('SoftWareVersion', _versiontype)
 	commin:      member[int] = member('TalkInChannel')
 	commout:     member[int] = member('TalkOutChannel')
 	videoin:     member[int] = member('VideoInChannel')
@@ -106,7 +108,7 @@ class GetInfoReply(Object, ControlMessage):
 	# FIXME mutual exclusion?
 
 
-class GetInfo(Object, ControlRequest):
+class GetInfo(Object, ControlRequest[GetInfoReply]):
 	type  = 1020
 	reply = GetInfoReply
 

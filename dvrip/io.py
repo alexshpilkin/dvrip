@@ -6,7 +6,7 @@ from typing import Iterable, Optional, MutableSequence, TypeVar, Union
 
 from .discover import DiscoverReply, Host
 from .errors import DVRIPDecodeError, DVRIPRequestError
-from .info import GetInfo, Info
+from .info import ActivityInfo, GetInfo, Info, StorageInfo, SystemInfo
 from .log import GetLog, LogQuery
 from .login import ClientLogin, ClientLogout, Hash
 from .message import ControlMessage, ControlRequest, EPOCH, Filter, Session, \
@@ -166,7 +166,7 @@ class DVRIPClient(DVRIPConnection):
 		self.socket.connect(address)
 		return self.login(*args, **named)
 
-	def systeminfo(self):
+	def systeminfo(self) -> SystemInfo:
 		reply = self.request(GetInfo(command=Info.SYSTEM,
 		                             session=self.session))
 		if reply.system is NotImplemented:
@@ -174,14 +174,14 @@ class DVRIPClient(DVRIPConnection):
 		reply.system.chassis = self._logininfo.chassis
 		return reply.system
 
-	def storageinfo(self):
+	def storageinfo(self) -> StorageInfo:
 		reply = self.request(GetInfo(command=Info.STORAGE,
 		                             session=self.session))
 		if reply.storage is NotImplemented:
 			raise DVRIPDecodeError('invalid system info reply')
 		return reply.storage
 
-	def activityinfo(self):
+	def activityinfo(self) -> ActivityInfo:
 		reply = self.request(GetInfo(command=Info.ACTIVITY,
 		                             session=self.session))
 		if reply.activity is NotImplemented:
