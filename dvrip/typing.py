@@ -239,7 +239,7 @@ class fixedmember(Member[object]):
 	def __get__(self,
 	            obj: 'Object',
 	            cls: type
-	           ) -> Union['fixedmember', object]:
+	           ) -> object:
 		if obj is None:
 			return self
 		return self.default
@@ -260,7 +260,7 @@ class fixedmember(Member[object]):
 class AttributeMember(Member[T]):
 	__slots__ = ()
 
-	def __get__(self, obj: 'Object', _type: type) -> Union['member[T]', T]:
+	def __get__(self, obj: 'Object', _type: type) -> T:
 		if obj is None:
 			return self
 		return getattr(obj._values_, self.name)  # pylint: disable=protected-access

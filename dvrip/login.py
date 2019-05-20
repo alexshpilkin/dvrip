@@ -1,6 +1,7 @@
 from enum     import Enum, unique
 from hashlib  import md5 as MD5
 from string   import ascii_lowercase, ascii_uppercase, digits
+from typing   import Callable, Type, TypeVar
 from .message import ControlMessage, ControlRequest, Session, Status
 from .errors  import DVRIPDecodeError
 from .typing  import Object, fixedmember, for_json, json_to, member, \
@@ -9,10 +10,12 @@ from .typing  import Object, fixedmember, for_json, json_to, member, \
 __all__ = ('xmmd5', 'Hash', 'ClientLoginReply', 'ClientLogin',
            'ClientLogoutReply', 'ClientLogout')
 
+H = TypeVar('H', bound='Hash')
+
 
 _XMMD5MAGIC = (digits + ascii_uppercase + ascii_lowercase)
 
-def xmmd5(password):
+def xmmd5(password: str) -> str:
 	md5 = MD5(password.encode('utf-8')).digest()
 	return ''.join(_XMMD5MAGIC[(a+b) % len(_XMMD5MAGIC)]
 	               for a, b in zip(md5[0::2], md5[1::2]))[:8]
@@ -22,26 +25,28 @@ def xmmd5(password):
 class Hash(Enum):
 	__slots__ = ('id', 'func')
 
-	def __new__(cls, id, func):  # pylint: disable=redefined-builtin
+	def __new__(cls, id: str, _func: Callable[[str], str]) -> 'Hash':  # pylint: disable=redefined-builtin
 		self = object.__new__(cls)
 		self._value_ = id  # pylint: disable=protected-access
-		self.id      = id
-		self.func    = func
 		return self
 
-	def __repr__(self):
+	def __init__(self, id: str, func: Callable[[str], str]) -> None:  # pylint: disable=redefined-builtin
+		self.id   = id
+		self.func = func
+
+	def __repr__(self) -> str:
 		return '{}.{}'.format(type(self).__qualname__, self.name)
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return self.id
 
-	def for_json(self):
+	def for_json(self) -> object:
 		return for_json(self.id)
 
 	@classmethod
-	def json_to(cls, datum):
+	def json_to(cls: Type[H], datum: object) -> H:
 		try:
-			return cls(json_to(str)(datum))  # pylint: disable=no-value-for-parameter
+			return cls(json_to(str)(datum))  # type: ignore  # pylint: disable=no-value-for-parameter
 		except ValueError:
 			raise DVRIPDecodeError('not a known hash function')
 
@@ -60,7 +65,7 @@ class ClientLoginReply(Object, ControlMessage):
 	encrypt:  optionalmember[bool] = optionalmember('DataUseAES')
 
 
-class ClientLogin(Object, ControlRequest):
+class ClientLogin(Object, ControlRequest[ClientLoginReply]):
 	type  = 1000
 	reply = ClientLoginReply
 
@@ -78,7 +83,7 @@ class ClientLogoutReply(Object, ControlMessage):
 	session: member[Session] = member('SessionID')
 
 
-class ClientLogout(Object, ControlRequest):
+class ClientLogout(Object, ControlRequest[ClientLogoutReply]):
 	type  = 1002
 	reply = ClientLogoutReply
 

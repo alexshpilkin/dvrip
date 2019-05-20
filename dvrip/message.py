@@ -261,7 +261,7 @@ class ControlMessage(Value):
 		return cls.fromchunks(p.payload for p in packets if p.payload)
 
 
-Filter = Generator[Union['NotImplemented', None, T], Packet, None]
+Filter = Generator[Union['NotImplemented', None, T], Optional[Packet], None]
 
 
 def controlfilter(cls: Type[M], number: int) -> Filter[M]:
@@ -271,6 +271,8 @@ def controlfilter(cls: Type[M], number: int) -> Filter[M]:
 
 	packet = yield None  # prime the pump
 	while True:
+		assert packet is not None
+
 		if packet.type != cls.type:
 			packet = yield NotImplemented; continue
 		if packet.number & ~1 != number & ~1:
@@ -298,9 +300,10 @@ def controlfilter(cls: Type[M], number: int) -> Filter[M]:
 			return
 
 
-def streamfilter(type: int) -> Filter[Sequence[int]]:  # pylint: disable=redefined-builtin
+def streamfilter(type: int) -> Filter[Union[bytes, bytearray, memoryview]]:  # pylint: disable=redefined-builtin
 	packet = yield None  # prime the pump
 	while True:
+		assert packet is not None
 		if packet.type != type:
 			packet = yield NotImplemented
 			continue
@@ -318,5 +321,5 @@ class ControlRequest(Generic[M], ControlMessage):
 		return controlfilter(cls.reply, number)
 
 	@classmethod
-	def stream(cls) -> Filter[Sequence[int]]:
+	def stream(cls) -> Filter[Union[bytes, bytearray, memoryview]]:
 		return streamfilter(cls.data)

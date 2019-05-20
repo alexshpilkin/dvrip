@@ -2,13 +2,15 @@ from datetime import datetime
 from io import RawIOBase
 from socket import AF_INET, SO_BROADCAST, SO_REUSEADDR, SOCK_DGRAM, \
                    socket as Socket, SOL_SOCKET, timeout as Timeout
+from typing import Iterable, Optional, MutableSequence, TypeVar, Union
 
-from .discover import DiscoverReply
+from .discover import DiscoverReply, Host
 from .errors import DVRIPDecodeError, DVRIPRequestError
 from .info import GetInfo, Info
 from .log import GetLog, LogQuery
 from .login import ClientLogin, ClientLogout, Hash
-from .message import EPOCH, Session, Status
+from .message import ControlMessage, ControlRequest, EPOCH, Filter, Session, \
+                     Status
 from .monitor import DoMonitor, Monitor, MonitorAction, MonitorClaim, \
                      MonitorParams
 from .operation import GetTime, Machine, MachineOperation, Operation, \
@@ -20,24 +22,32 @@ from .search import GetFile, FileQuery
 
 __all__ = ('DVRIPConnection', 'DVRIPClient', 'DVRIPServer')
 
+M = TypeVar('M', bound=ControlMessage)
+T = TypeVar('T')
+
 
 class DVRIPConnection(object):
 	__slots__ = ('socket', 'file', 'session', 'number')
 
-	def __init__(self, socket, session=None, number=0):
+	def __init__(self,
+	             socket: Socket,
+	             session: Optional[Session] = None,
+	             number: int = 0
+	            ) -> None:
 		self.socket   = socket
 		self.file     = socket.makefile('rwb', buffering=0)
 		self.session  = session
 		self.number   = number & ~1
 
-	def send(self, number, message):
+	def send(self, number: int, message: ControlMessage):
+		assert self.session is not None
+
 		file = self.file
 		for packet in message.topackets(self.session, number):
 			packet.dump(file)
 
-	def recv(self, filter):  # pylint: disable=redefined-builtin
-		file   = self.file
-		filter = iter(filter)
+	def recv(self, filter: Filter[T]) -> T:  # pylint: disable=redefined-builtin
+		file = self.file
 		filter.send(None)  # prime the pump
 		while True:
 			packet = Packet.load(file)
@@ -49,18 +59,22 @@ class DVRIPConnection(object):
 				return reply
 			filter.send(None)
 
-	def request(self, request):
+	def request(self, request: ControlRequest[M]) -> M:
 		self.number += 2
 		self.send(self.number, request)
-		reply = self.recv(request.replies(self.number))
+		reply: M = self.recv(request.replies(self.number))
 		DVRIPRequestError.signal(request, reply)
 		return reply
 
-	def reader(self, socket, claim, request):
+	def reader(self,
+	           socket: Socket,
+	           claim: ControlRequest[M],
+	           request: ControlRequest
+	          ) -> RawIOBase:
 		data = DVRIPConnection(socket, self.session)
 		data.send(data.number, claim)
 		self.request(request)
-		reply = data.recv(claim.replies(data.number))
+		reply: M = data.recv(claim.replies(data.number))
 		DVRIPRequestError.signal(claim, reply)
 		return DVRIPReader(data, claim.stream())
 
@@ -68,19 +82,23 @@ class DVRIPConnection(object):
 class DVRIPReader(RawIOBase):
 	__slots__ = ('conn', 'filter', 'buffer')
 
-	def __init__(self, conn, filter):  # pylint: disable=redefined-builtin
+	def __init__(self,
+	             conn: DVRIPConnection,
+	             filter: Filter[Union[bytes, bytearray, memoryview]]  # pylint: disable=redefined-builtin
+	            ) -> None:
 		super().__init__()
 		self.conn   = conn
 		self.filter = filter
-		self.buffer = b''
+		self.buffer = memoryview(b'')
 
-	def readable(self):
+	def readable(self) -> bool:
 		return True
 
-	def readinto(self, buffer):
+	def readinto(self, buffer: MutableSequence[int]) -> int:
 		if not self.buffer:
 			try:
-				data = self.conn.recv(self.filter)
+				data: Union[bytes, bytearray, memoryview] = \
+				      self.conn.recv(self.filter)
 			except StopIteration:
 				return 0
 			self.buffer = memoryview(data)
@@ -100,7 +118,7 @@ class DVRIPClient(DVRIPConnection):
 		self._logininfo = None
 
 	@staticmethod
-	def discover(interface, timeout):
+	def discover(interface: str, timeout: float) -> Iterable[Host]:
 		sock = Socket(AF_INET, SOCK_DGRAM)
 		sock.settimeout(timeout)
 		sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
@@ -123,10 +141,13 @@ class DVRIPClient(DVRIPConnection):
 				                       'reported')
 			yield reply
 
-	def login(self, username, password, hash=Hash.XMMD5,  # pylint: disable=redefined-builtin
-	          service='DVRIP-Web'):
+	def login(self,
+	          username: str,
+	          password: str,
+	          hash: Hash = Hash.XMMD5,  # pylint: disable=redefined-builtin
+	          service: str = 'DVRIP-Web'
+	         ) -> None:
 		assert self.session is None
-
 		self.session = Session(0)
 		request = ClientLogin(username=username,
 		                      passhash=hash.func(password),
@@ -136,13 +157,12 @@ class DVRIPClient(DVRIPConnection):
 		self.session    = reply.session
 		self._logininfo = reply
 
-	def logout(self):
-		assert self.session is not None
+	def logout(self) -> None:
 		request = ClientLogout(session=self.session)
 		self.request(request)
 		self.session = None
 
-	def connect(self, address, *args, **named):
+	def connect(self, address: Union[tuple, str], *args, **named) -> None:
 		self.socket.connect(address)
 		return self.login(*args, **named)
 

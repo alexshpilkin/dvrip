@@ -4,11 +4,11 @@ from .typing import Object, fixedmember, member
 
 _json_to_hex, _hex_for_json = hextype
 
-def _ip_for_json(value):
+def _ip_for_json(value: str) -> object:
 	a, b, c, d = (int(x) for x in value.split('.'))
 	return _hex_for_json((d << 24) | (c << 16) | (b << 8) | a)
 
-def _json_to_ip(datum):
+def _json_to_ip(datum: object) -> str:
 	datum = _json_to_hex(datum)
 	d = (datum >> 24) & 0xFF
 	c = (datum >> 16) & 0xFF
@@ -19,11 +19,11 @@ def _json_to_ip(datum):
 _iptype = (_json_to_ip, _ip_for_json)
 
 
-def _mask_for_json(value):
+def _mask_for_json(value: int) -> object:
 	value = (0xFFFFFFFF >> (32 - value)) & 0xFFFFFFFF  # little endian!
 	return _hex_for_json(value)
 
-def _json_to_mask(datum):
+def _json_to_mask(datum: object) -> int:
 	datum = _json_to_hex(datum)
 	value = 0
 	while datum:
@@ -40,7 +40,7 @@ class Host(Object):
 	mac:       member[str] = member('MAC')
 	router:    member[str] = member('GateWay', _iptype)
 	host:      member[str] = member('HostIP', _iptype)
-	mask:      member[str] = member('Submask', _masktype)  # FIXME
+	mask:      member[int] = member('Submask', _masktype)  # FIXME
 	name:      member[str] = member('HostName')
 	tcpport:   member[int] = member('TCPPort')
 	udpport:   member[int] = member('UDPPort')
