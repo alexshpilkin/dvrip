@@ -1,8 +1,8 @@
 from enum import unique
 from datetime import datetime
 from typing import List, Optional
-from .message import Choice, ControlMessage, ControlRequest, Status, Session, \
-                     datetimetype, hextype
+from .message import Choice, Message, Request, Status, Session, datetimetype, \
+                     hextype
 from .typing import Object, fixedmember, member, optionalmember
 
 
@@ -15,7 +15,7 @@ class File(Object):
 	end:    member[Optional[datetime]] = member('EndTime', datetimetype)
 
 
-class GetFileReply(Object, ControlMessage):
+class GetFileReply(Object, Message):
 	type = 1441
 
 	status:  member[Status]  = member('Ret')
@@ -38,7 +38,7 @@ class FileQuery(Object):
 	type:    member[FileType] = member('Type')
 
 
-class GetFile(Object, ControlRequest):
+class GetFile(Object, Request):
 	type = 1440
 	reply = GetFileReply
 

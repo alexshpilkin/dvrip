@@ -396,7 +396,7 @@ def test_streamfilter_send(session):
 	with raises(StopIteration):
 		f.send(None)  # re-prime
 
-class ExampleRequest(ControlRequest):
+class ExampleRequest(Request):
 	type  = 57
 	reply = None  # FIXME
 	data  = 42
@@ -408,7 +408,7 @@ class ExampleRequest(ControlRequest):
 	def json_to(cls):
 		return cls()
 
-def test_ControlMessage_stream(session):
+def test_Message_stream(session):
 	p = Packet(session.id, 0, 42, b'hello', channel=0, end=1)
 	r = ExampleRequest()
 	f = r.stream()

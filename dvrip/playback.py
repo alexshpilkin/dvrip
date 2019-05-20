@@ -1,11 +1,10 @@
 from datetime import datetime
 from typing import Optional
-from .message import Choice, ControlRequest, ControlMessage, Session, Status, \
-                     datetimetype
+from .message import Choice, Request, Message, Session, Status, datetimetype
 from .typing import Object, fixedmember, member
 
 
-class DoPlaybackReply(Object, ControlMessage):
+class DoPlaybackReply(Object, Message):
 	type = 1421
 
 	status:  member[Status]  = member('Ret')
@@ -34,7 +33,7 @@ class Playback(Object):
 	start:  member[Optional[datetime]] = member('StartTime', datetimetype)
 	end:    member[Optional[datetime]] = member('EndTime', datetimetype)
 
-class DoPlayback(Object, ControlRequest):
+class DoPlayback(Object, Request):
 	type  = 1420
 	reply = DoPlaybackReply
 

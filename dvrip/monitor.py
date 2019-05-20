@@ -1,8 +1,8 @@
-from .message import Choice, ControlRequest, ControlMessage, Session, Status
+from .message import Choice, Request, Message, Session, Status
 from .typing import Object, fixedmember, member
 
 
-class DoMonitorReply(Object, ControlMessage):
+class DoMonitorReply(Object, Message):
 	type = 1411
 
 	status:  member[Status]  = member('Ret')
@@ -30,7 +30,7 @@ class Monitor(Object):
 	params: member[MonitorParams] = member('Parameter')
 
 
-class DoMonitor(Object, ControlRequest):
+class DoMonitor(Object, Request):
 	type  = 1410
 	reply = DoMonitorReply
 

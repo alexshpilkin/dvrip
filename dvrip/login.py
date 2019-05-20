@@ -2,7 +2,7 @@ from enum     import Enum, unique
 from hashlib  import md5 as MD5
 from string   import ascii_lowercase, ascii_uppercase, digits
 from typing   import Callable, Type, TypeVar
-from .message import ControlMessage, ControlRequest, Session, Status
+from .message import Message, Request, Session, Status
 from .errors  import DVRIPDecodeError
 from .typing  import Object, fixedmember, for_json, json_to, member, \
                      optionalmember
@@ -53,7 +53,7 @@ class Hash(Enum):
 	XMMD5 = ('MD5', xmmd5)
 
 
-class ClientLoginReply(Object, ControlMessage):
+class ClientLoginReply(Object, Message):
 	type = 1001
 
 	status:   member[Status]       = member('Ret')
@@ -65,7 +65,7 @@ class ClientLoginReply(Object, ControlMessage):
 	encrypt:  optionalmember[bool] = optionalmember('DataUseAES')
 
 
-class ClientLogin(Object, ControlRequest[ClientLoginReply]):
+class ClientLogin(Object, Request[ClientLoginReply]):
 	type  = 1000
 	reply = ClientLoginReply
 
@@ -75,7 +75,7 @@ class ClientLogin(Object, ControlRequest[ClientLoginReply]):
 	service:  member[str]  = member('LoginType')
 
 
-class ClientLogoutReply(Object, ControlMessage):
+class ClientLogoutReply(Object, Message):
 	type = 1003
 
 	status:  member[Status]  = member('Ret')
@@ -83,7 +83,7 @@ class ClientLogoutReply(Object, ControlMessage):
 	session: member[Session] = member('SessionID')
 
 
-class ClientLogout(Object, ControlRequest[ClientLogoutReply]):
+class ClientLogout(Object, Request[ClientLogoutReply]):
 	type  = 1002
 	reply = ClientLogoutReply
 

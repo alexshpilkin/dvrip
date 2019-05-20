@@ -1,4 +1,4 @@
-from .message import ControlMessage, Session, Status, hextype
+from .message import Message, Session, Status, hextype
 from .typing import Object, fixedmember, member
 
 
@@ -55,7 +55,7 @@ class Host(Object):
 	_state:     fixedmember = fixedmember('NetConnectState', 0)  # TODO
 	_others:    member[str] = member('OtherFunction')  # TODO
 
-class DiscoverReply(Object, ControlMessage):
+class DiscoverReply(Object, Message):
 	type = 1531
 
 	status:  member[Status]  = member('Ret')

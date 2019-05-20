@@ -1,7 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from .message import Choice, ControlMessage, ControlRequest, Session, Status, \
-                     datetimetype
+from .message import Choice, Message, Request, Session, Status, datetimetype
 from .typing import Object, fixedmember, member
 
 __all__ = ('LogEntry', 'GetLogReply', 'LogQuery', 'GetLog')
@@ -26,7 +25,7 @@ class LogEntry(Object):
 	user:   member[str]                = member('User')
 
 
-class GetLogReply(Object, ControlMessage):
+class GetLogReply(Object, Message):
 	type = 1443
 
 	status:  member[Status]  = member('Ret')
@@ -42,7 +41,7 @@ class LogQuery(Object):
 	_type:     fixedmember                = fixedmember('Type', 'LogAll')  # TODO
 
 
-class GetLog(Object, ControlRequest):
+class GetLog(Object, Request):
 	type = 1442
 	reply = GetLogReply
 

@@ -9,8 +9,7 @@ from .errors import DVRIPDecodeError, DVRIPRequestError
 from .info import ActivityInfo, GetInfo, Info, StorageInfo, SystemInfo
 from .log import GetLog, LogQuery
 from .login import ClientLogin, ClientLogout, Hash
-from .message import ControlMessage, ControlRequest, EPOCH, Filter, Session, \
-                     Status
+from .message import Message, Request, EPOCH, Filter, Session, Status
 from .monitor import DoMonitor, Monitor, MonitorAction, MonitorClaim, \
                      MonitorParams
 from .operation import GetTime, Machine, MachineOperation, Operation, \
@@ -22,7 +21,7 @@ from .search import GetFile, FileQuery
 
 __all__ = ('DVRIPConnection', 'DVRIPClient', 'DVRIPServer')
 
-M = TypeVar('M', bound=ControlMessage)
+M = TypeVar('M', bound=Message)
 T = TypeVar('T')
 
 
@@ -39,7 +38,7 @@ class DVRIPConnection(object):
 		self.session  = session
 		self.number   = number & ~1
 
-	def send(self, number: int, message: ControlMessage):
+	def send(self, number: int, message: Message):
 		assert self.session is not None
 
 		file = self.file
@@ -59,7 +58,7 @@ class DVRIPConnection(object):
 				return reply
 			filter.send(None)
 
-	def request(self, request: ControlRequest[M]) -> M:
+	def request(self, request: Request[M]) -> M:
 		self.number += 2
 		self.send(self.number, request)
 		reply: M = self.recv(request.replies(self.number))
@@ -68,8 +67,8 @@ class DVRIPConnection(object):
 
 	def reader(self,
 	           socket: Socket,
-	           claim: ControlRequest[M],
-	           request: ControlRequest
+	           claim: Request[M],
+	           request: Request
 	          ) -> RawIOBase:
 		data = DVRIPConnection(socket, self.session)
 		data.send(data.number, claim)
@@ -178,14 +177,14 @@ class DVRIPClient(DVRIPConnection):
 		reply = self.request(GetInfo(command=Info.STORAGE,
 		                             session=self.session))
 		if reply.storage is NotImplemented:
-			raise DVRIPDecodeError('invalid system info reply')
+			raise DVRIPDecodeError('invalid storage info reply')
 		return reply.storage
 
 	def activityinfo(self) -> ActivityInfo:
 		reply = self.request(GetInfo(command=Info.ACTIVITY,
 		                             session=self.session))
 		if reply.activity is NotImplemented:
-			raise DVRIPDecodeError('invalid system info reply')
+			raise DVRIPDecodeError('invalid activity info reply')
 		return reply.activity
 
 	def time(self, time=None):

@@ -1,8 +1,8 @@
 from datetime import datetime
 from enum     import unique
 from typing   import List, Optional
-from .message import Choice, ControlMessage, ControlRequest, Session, Status, \
-                     datetimetype, hextype
+from .message import Choice, Message, Request, Session, Status, datetimetype, \
+                     hextype
 from .typing  import Object, absentmember, for_json, json_to, member, \
                      optionalmember
 
@@ -95,7 +95,7 @@ class ActivityInfo(Object):
 	channels: member[List[ChannelInfo]] = member('ChannelState')
 
 
-class GetInfoReply(Object, ControlMessage):
+class GetInfoReply(Object, Message):
 	type = 1021
 
 	status:   member[Status]  = member('Ret')
@@ -108,7 +108,7 @@ class GetInfoReply(Object, ControlMessage):
 	# FIXME mutual exclusion?
 
 
-class GetInfo(Object, ControlRequest[GetInfoReply]):
+class GetInfo(Object, Request[GetInfoReply]):
 	type  = 1020
 	reply = GetInfoReply
 

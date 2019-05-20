@@ -6,16 +6,17 @@ from json import dumps, load
 from string import hexdigits
 from typing import ClassVar, Generator, Generic, Iterable, List, Optional, \
                    Sequence, Type, TypeVar, Union, cast
+
 from .errors import DVRIPDecodeError
 from .packet import Packet
 from .typing import Value, for_json, json_to
 
 __all__ = ('hextype', 'EPOCH', 'RESOLUTION', 'datetimetype', 'Choice',
-           'Session', 'Status', 'ControlMessage', 'Filter', 'controlfilter',
-           'streamfilter', 'ControlRequest')
+           'Session', 'Status', 'Message', 'Filter', 'controlfilter',
+           'streamfilter', 'Request')
 
 C = TypeVar('C', bound='Choice')
-M = TypeVar('M', bound='ControlMessage')
+M = TypeVar('M', bound='Message')
 R = TypeVar('R', bound='Status')
 S = TypeVar('S', bound='Session')
 T = TypeVar('T')
@@ -222,7 +223,7 @@ class Status(Enum):
 	SYNTAX   = (608, False, 'Illegal configuration syntax')
 
 
-class ControlMessage(Value):
+class Message(Value):
 	__slots__ = ()
 
 	@property
@@ -312,7 +313,7 @@ def streamfilter(type: int) -> Filter[Union[bytes, bytearray, memoryview]]:  # p
 		packet = yield None
 
 
-class ControlRequest(Generic[M], ControlMessage):
+class Request(Generic[M], Message):
 	reply: ClassVar[Type[M]]
 	data:  ClassVar[int]
 

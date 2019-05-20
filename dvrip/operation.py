@@ -1,8 +1,7 @@
 from enum import unique
 from datetime import datetime
 from typing import Optional
-from .message import Choice, ControlMessage, ControlRequest, Status, Session, \
-                     datetimetype
+from .message import Choice, Message, Request, Status, Session, datetimetype
 from .typing import Object, fixedmember, member, optionalmember
 
 
@@ -45,7 +44,7 @@ class ResetOperation(Object):
 	recording: member[bool] = member('Record')
 
 
-class PerformOperationReply(Object, ControlMessage):
+class PerformOperationReply(Object, Message):
 	# pylint: disable=line-too-long
 	type = 1451
 
@@ -54,7 +53,7 @@ class PerformOperationReply(Object, ControlMessage):
 	session: member[Session]  = member('SessionID')
 
 
-class PerformOperation(Object, ControlRequest):
+class PerformOperation(Object, Request):
 	# pylint: disable=line-too-long
 	type = 1450
 	reply = PerformOperationReply
@@ -67,7 +66,7 @@ class PerformOperation(Object, ControlRequest):
 	settime: optionalmember[Optional[datetime]] = optionalmember('OPTimeSetting', datetimetype)
 
 
-class GetTimeReply(Object, ControlMessage):
+class GetTimeReply(Object, Message):
 	# pylint: disable=line-too-long
 	type = 1453
 
@@ -77,7 +76,7 @@ class GetTimeReply(Object, ControlMessage):
 	gettime: member[Optional[datetime]] = member('OPTimeQuery', datetimetype)
 
 
-class GetTime(Object, ControlRequest):
+class GetTime(Object, Request):
 	type = 1452
 	reply = GetTimeReply
 
