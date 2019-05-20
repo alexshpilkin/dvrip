@@ -52,7 +52,7 @@ class Host(Object):
 	_maxbps:    member[int] = member('MaxBps')
 	_plan:      fixedmember = fixedmember('TransferPlan', 'AutoAdapt')  # TODO
 	_hs:        fixedmember = fixedmember('UseHSDownLoad', False)  # TODO
-	_state:     fixedmember = fixedmember('NetConnectState', 1)  # TODO
+	_state:     fixedmember = fixedmember('NetConnectState', 0)  # TODO
 	_others:    member[str] = member('OtherFunction')  # TODO
 
 class DiscoverReply(Object, ControlMessage):

@@ -6,6 +6,7 @@ from socket import AF_INET, SO_BROADCAST, SO_REUSEADDR, SOCK_DGRAM, \
 from .discover import DiscoverReply
 from .errors import DVRIPDecodeError, DVRIPRequestError
 from .info import GetInfo, Info
+from .log import GetLog, LogQuery
 from .login import ClientLogin, ClientLogout, Hash
 from .message import EPOCH, Session, Status
 from .monitor import DoMonitor, Monitor, MonitorAction, MonitorClaim, \
@@ -186,6 +187,18 @@ class DVRIPClient(DVRIPConnection):
 		self.request(request)
 		self.socket.close()  # FIXME reset?
 		self.socket = self.file = self.session = None
+
+	def log(self, **kwargs):
+		offset = 0
+		while True:
+			request = GetLog(session=self.session,
+		                         logquery=LogQuery(offset=offset,
+		                                           **kwargs))
+			entries = self.request(request).entries
+			if entries is None:
+				break
+			yield from entries
+			offset = entries[-1].number + 1
 
 	def search(self, start, **kwargs):
 		last = None
