@@ -18,6 +18,7 @@ from .operation import GetTime, Machine, MachineOperation, Operation, \
 from .packet import Packet
 from .playback import DoPlayback, Playback, PlaybackAction, PlaybackClaim, \
                       PlaybackParams
+from .ptz import DoPTZ, PTZ, PTZButton, PTZParams
 
 __all__ = ('DVRIPConnection', 'DVRIPClient', 'DVRIPServer')
 
@@ -240,6 +241,12 @@ class DVRIPClient(DVRIPConnection):
 				return
 			last  = reply.files[-1]
 			start = last.start
+
+	def button(self, channel: int, button: PTZButton) -> None:
+		request = DoPTZ(session=self.session,
+		                ptz=PTZ(button=button,
+		                        params=PTZParams(channel=channel)))
+		self.request(request)
 
 	def download(self, socket, name):
 		pb = Playback(action=PlaybackAction.DOWNLOADSTART,

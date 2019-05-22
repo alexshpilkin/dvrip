@@ -8,6 +8,7 @@ from dvrip import DVRIP_PORT
 from dvrip.io import DVRIPClient
 from dvrip.files import FileType
 from dvrip.monitor import *
+from dvrip.ptz import PTZButton
 
 
 import dvrip.packet
@@ -42,10 +43,11 @@ print(list(conn.files(start=now - timedelta(hours=5),
 entries = list(conn.log(start=now - timedelta(hours=5), end=now))
 for p in set((e.type, e._data) for e in entries):
 	print(p)
+conn.button(0, PTZButton.MENU)
 
 #name = '/idea0/2019-05-01/001/01.04.07-01.04.23[M][@15b7][0].h264'
-sock = Socket(AF_INET, SOCK_STREAM)
-sock.connect((argv[1], DVRIP_PORT))
+#sock = Socket(AF_INET, SOCK_STREAM)
+#sock.connect((argv[1], DVRIP_PORT))
 
 
 #monitor = Monitor(action=MonitorAction.START,

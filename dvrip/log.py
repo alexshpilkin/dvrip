@@ -13,6 +13,7 @@ class LogType(Choice):
 	LOGOUT   = 'LogOut'
 	START    = 'EventStart'
 	END      = 'EventStop'
+	SETTIME  = 'SetTime'
 	_SAVESTATE  = 'SaveSystemState' # FIXME
 	_SAVECONFIG = 'SaveConfig' # FIXME
 
