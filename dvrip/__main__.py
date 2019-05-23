@@ -226,42 +226,6 @@ def run_find(conn: DVRIPClient, args: List[str]) -> None:
 			print(file.name)
 
 
-def neigh_usage() -> NoReturn:
-	print('Usage: {} neigh'.format(prog()), file=stderr)
-	exit(EX_USAGE)
-
-def run_neigh(args: List[str]) -> None:
-	try:
-		opts, args = getopt(args, 'i:t:')
-	except GetoptError:
-		neigh_usage()
-	if args:
-		neigh_usage()
-
-	interface = ''
-	timeout   = 1.0
-	for opt, arg in opts:
-		if opt == '-i':
-			try:
-				interface = gethostbyname(arg)
-			except OSError as e:
-				ioerr(e, EX_NOHOST)
-		if opt == '-t':
-			try:
-				timeout = float(arg)
-			except ValueError:
-				neigh_usage()
-
-	try:
-		for result in DVRIPClient.discover(interface, timeout):
-			print('{} {} {} {}/{} via {} port {} channels {}'
-			      .format(result.serial, result.mac, result.name,
-			              result.host, result.mask, result.router,
-			              result.tcpport, result.channels))
-	except OSError as e:
-		ioerr(e)
-
-
 def time_usage() -> NoReturn:
 	print('Usage: {} time [TIME]'.format(prog_connected()), file=stderr)
 	exit(EX_USAGE)
@@ -286,7 +250,7 @@ def prog_connected() -> str:
 
 def usage() -> NoReturn:
 	print('Usage: {} [-h HOST] [-p PORT] [-u USERNAME] COMMAND ...\n'
-	      '       COMMAND is one of cat, find, info, neigh, reboot, or time'
+	      '       COMMAND is one of cat, find, info, reboot, or time'
 	      .format(prog()),
 	      file=stderr)
 	exit(EX_USAGE)
@@ -354,10 +318,6 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 			run_find(conn, args)
 		finally:
 			conn.logout()
-	elif command == 'neigh':
-		if host is not None:
-			neigh_usage()
-		run_neigh(args)
 	elif command == 'reboot':
 		if host is None or args:
 			print('Usage: {} reboot'.format(prog_connected()),

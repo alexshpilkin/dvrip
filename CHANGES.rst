@@ -4,6 +4,9 @@ Changes
 Unreleased
 ----------
 
+* The ``dvr`` tool can now invoke standalone scripts: ``dvr foo``
+  searches for ``dvr-foo`` in the system PATH.
+* The ``dvr neigh`` command is now ``dvr discover``.
 * ControlMessage and ControlRequest are now simply Message and Request,
   as there is no other kind of message or request.
 * The ``search`` module is now ``files``, and so is the corresponding
