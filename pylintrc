@@ -17,6 +17,7 @@ disable=
 	bad-continuation,                 # C0330 -- fooled by alignment
 	wrong-import-order,               # C0411 -- as intended
 	useless-object-inheritance,       # R0205 -- as intended
+	duplicate-code,                   # R0801 -- fooled by dvrip.cmd
 	too-many-ancestors,               # R0907 -- as intended
 
 [REPORTS]
