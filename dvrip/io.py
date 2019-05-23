@@ -188,25 +188,25 @@ class DVRIPClient(DVRIPConnection):
 			raise DVRIPDecodeError('invalid activity info reply')
 		return reply.activity
 
-	def time(self, time=None):
+	def time(self, time: Optional[datetime] = None) -> datetime:
 		reply = self.request(GetTime(session=self.session))
+		if reply.gettime is NotImplemented:
+			raise DVRIPDecodeError('invalid get time reply')
 		if time is not None:
 			request = PerformOperation(command=Operation.SETTIME,
 			                           session=self.session,
 			                           settime=time)
 			self.request(request)
-		if reply.gettime is NotImplemented:
-			return None
 		return reply.gettime
 
-	def reboot(self):
+	def reboot(self) -> None:
 		machine = MachineOperation(action=Machine.REBOOT)
 		request = PerformOperation(command=Operation.MACHINE,
 		                           session=self.session,
 		                           machine=machine)
 		self.request(request)
 		self.socket.close()  # FIXME reset?
-		self.socket = self.file = self.session = None
+		self.session = None
 
 	def log(self, **kwargs):
 		offset = 0
