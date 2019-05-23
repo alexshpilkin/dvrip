@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from datetime import datetime
 from getopt import GetoptError, getopt
 from getpass import getpass
 from os import environ
@@ -10,9 +9,7 @@ from socket import AF_INET, SOCK_STREAM, socket as Socket, gethostbyname, \
 from sys import argv, executable, exit, stderr  # pylint: disable=redefined-builtin
 from typing import List, NoReturn, Tuple
 from .errors import DVRIPDecodeError, DVRIPRequestError
-from .files import FileType
 from .io import DVRIPClient
-from .message import EPOCH
 
 try:
 	# pylint: disable=ungrouped-imports
@@ -121,74 +118,6 @@ def run_info(conn: DVRIPClient, args: List[str]) -> None:
 	print(' '.join(line))  # status line
 
 
-def find_usage() -> NoReturn:
-	print('Usage: {} find -{{i|v}} [-l] [-s START] [-e END] -c CHANNEL'
-	      .format(prog_connected()),
-	      file=stderr)
-	exit(EX_USAGE)
-
-def run_find(conn: DVRIPClient, args: List[str]) -> None:
-	try:
-		opts, args = getopt(args, 'lhivs:e:c:')
-	except GetoptError:
-		find_usage()
-	if args:
-		find_usage()
-
-	long = False
-	size = lambda L: str(L) + 'K'
-	filetype, start, end, channel = None, None, None, None
-	for opt, arg in opts:
-		if opt == '-l':
-			long = True
-		if opt == '-h':
-			from humanize import naturalsize  # type: ignore
-			size = lambda L: naturalsize(L*1024, gnu=True)  # pylint:disable=cell-var-from-loop
-		if opt == '-i':
-			if filetype is not None:
-				find_usage()
-			filetype = FileType.IMAGE
-		if opt == '-v':
-			if filetype is not None:
-				find_usage()
-			filetype = FileType.VIDEO
-		if opt == '-s':
-			from dateparser import parse  # type: ignore
-			start = parse(arg)
-			if start is None:
-				find_usage()
-		if opt == '-e':
-			from dateparser import parse  # type: ignore
-			end = parse(arg)
-			if end is None:
-				find_usage()
-		if opt == '-c':
-			try:
-				channel = int(arg, base=0)
-			except ValueError:
-				find_usage()
-	if filetype is None or channel is None:
-		find_usage()
-	if start is None:
-		start = EPOCH
-	if end is None:
-		end = datetime.now()
-
-	for file in conn.files(start=start,
-	                       end=end,
-	                       channel=channel,
-	                       type=filetype):
-		if long:
-			print('{} {} {} {} {:>8} {}'
-			      .format(file.disk, file.part,
-			              file.start.isoformat(),
-			              file.end.isoformat(),
-			              size(file.length),
-			              file.name))
-		else:
-			print(file.name)
-
-
 def prog() -> str:
 	name = basename(argv[0])
 	return ('{} -m dvrip'.format(executable)
@@ -200,7 +129,7 @@ def prog_connected() -> str:
 
 def usage() -> NoReturn:
 	print('Usage: {} [-h HOST] [-p PORT] [-u USERNAME] COMMAND ...\n'
-	      '       COMMAND is one of find, info, or reboot'
+	      '       COMMAND is info or reboot'
 	      .format(prog()),
 	      file=stderr)
 	exit(EX_USAGE)
@@ -242,15 +171,6 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 		conn = connect(resolve(host, port), username, password)
 		try:
 			run_info(conn, args)
-		finally:
-			conn.logout()
-	elif command == 'find':
-		if host is None:
-			find_usage()
-		assert password is not None
-		conn = connect(resolve(host, port), username, password)
-		try:
-			run_find(conn, args)
 		finally:
 			conn.logout()
 	elif command == 'reboot':
