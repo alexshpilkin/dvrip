@@ -3,11 +3,11 @@ from socket import gethostbyname
 from sys import stderr
 from typing import List, NoReturn
 from ..io import DVRIPClient
-from . import EX_USAGE, EX_NOHOST, osexit, prog
+from . import EX_USAGE, EX_NOHOST, guard, osexit, prog
 
 
 def usage() -> NoReturn:
-	print('Usage: {} {}'.format(prog(), __name__), file=stderr)
+	print('Usage: {} discover'.format(prog()), file=stderr)
 	exit(EX_USAGE)
 
 
@@ -33,20 +33,17 @@ def run(args: List[str]) -> None:
 			except ValueError:
 				usage()
 
-	try:
-		for result in DVRIPClient.discover(interface, timeout):
-			print('{} {} {} {}/{} via {} port {} channels {}'
-			      .format(result.serial, result.mac, result.name,
-			              result.host, result.mask, result.router,
-			              result.tcpport, result.channels))
-	except OSError as e:
-		osexit(e)
+	for result in DVRIPClient.discover(interface, timeout):
+		print('{} {} {} {}/{} via {} port {} channels {}'
+		      .format(result.serial, result.mac, result.name,
+		              result.host, result.mask, result.router,
+		              result.tcpport, result.channels))
 
 
 def main():
 	from sys import argv
 	from . import host
 
-	if host():
+	if host() is not None:
 		usage()
-	run(argv[1:])
+	guard(run, argv[1:])

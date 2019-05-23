@@ -5,16 +5,14 @@ from getopt import GetoptError, getopt
 from getpass import getpass
 from os import environ
 from os.path import basename
-from shutil import copyfileobj
 from socket import AF_INET, SOCK_STREAM, socket as Socket, gethostbyname, \
                    getservbyname
-from sys import argv, executable, exit, stderr, stdout  # pylint: disable=redefined-builtin
+from sys import argv, executable, exit, stderr  # pylint: disable=redefined-builtin
 from typing import List, NoReturn, Tuple
 from .errors import DVRIPDecodeError, DVRIPRequestError
 from .files import FileType
 from .io import DVRIPClient
 from .message import EPOCH
-from .monitor import Stream
 
 try:
 	# pylint: disable=ungrouped-imports
@@ -63,41 +61,6 @@ def connect(address: Tuple[str, int], user: str, password: str) -> DVRIPClient:
 	except OSError as e:
 		ioerr(e)
 	return conn
-
-
-def cat_usage() -> NoReturn:
-	print('Usage: {} cat {{NAME|CHANNEL}}'.format(prog_connected()),
-	      file=stderr)
-	exit(EX_USAGE)
-
-def run_cat(conn: DVRIPClient, sock: Socket, args: List[str]) -> None:
-	if len(args) != 1:
-		cat_usage()
-
-	name, = args
-	if name.startswith('/'):
-		reader = lambda: conn.download(sock, name)
-	elif name.startswith('monitor:'):
-		if ';' not in name:
-			name += ';hd'
-		chanstr, strstr = name[len('monitor:'):].split(';', 1)
-		try:
-			channel = int(chanstr, base=0)
-		except ValueError:
-			cat_usage()
-		try:
-			stream = Stream[strstr.upper()]
-		except KeyError:
-			cat_usage()
-		reader = lambda: conn.monitor(sock, channel, stream)
-	try:
-		file = reader()
-		try:
-			copyfileobj(file, stdout.buffer, length=256)
-		except (BrokenPipeError, KeyboardInterrupt):
-			pass
-	finally:
-		sock.close()
 
 
 def info_usage() -> NoReturn:
@@ -250,7 +213,7 @@ def prog_connected() -> str:
 
 def usage() -> NoReturn:
 	print('Usage: {} [-h HOST] [-p PORT] [-u USERNAME] COMMAND ...\n'
-	      '       COMMAND is one of cat, find, info, reboot, or time'
+	      '       COMMAND is one of find, info, reboot, or time'
 	      .format(prog()),
 	      file=stderr)
 	exit(EX_USAGE)
@@ -285,22 +248,7 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 		except EOFError:
 			exit(EX_IOERR)
 
-	if command == 'cat':
-		if host is None:
-			cat_usage()
-		assert password is not None
-		addr = resolve(host, port)
-		sock = Socket(AF_INET, SOCK_STREAM)
-		try:
-			sock.connect(addr)
-		except OSError as e:
-			ioerr(e)
-		conn = connect(addr, username, password)
-		try:
-			run_cat(conn, sock, args)
-		finally:
-			conn.logout()
-	elif command == 'info':
+	if command == 'info':
 		if host is None:
 			usage()
 		assert password is not None

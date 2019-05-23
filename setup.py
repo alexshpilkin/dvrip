@@ -201,8 +201,10 @@ setup(
 	scripts=['dvrip_test'],
 	entry_points={
 		'console_scripts': [
+			'olddvr = dvrip.__main__:run',
 			'dvr = dvrip.cmd:main',
-			'dvr-discover = dvrip.cmd.discover:main'
+			'dvr-cat = dvrip.cmd.cat:main',
+			'dvr-discover = dvrip.cmd.discover:main',
 		],
 	},
 	include_package_data = True,
