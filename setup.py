@@ -206,6 +206,7 @@ setup(
 			'dvr-cat = dvrip.cmd.cat:main',
 			'dvr-discover = dvrip.cmd.discover:main',
 			'dvr-find = dvrip.cmd.find:main',
+			'dvr-info = dvrip.cmd.info:main',
 			'dvr-time = dvrip.cmd.time:main',
 		],
 	},
