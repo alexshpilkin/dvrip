@@ -8,6 +8,8 @@ Unreleased
   as there is no other kind of message or request.
 * The ``search`` module is now ``files``, and so is the corresponding
   DVRIPClient method.
+* The ``dateparser`` and ``humanize`` dependencies are now only required
+  when the corresponding command-line options are used.
 
 0.0.3 (2019-05-03)
 ------------------

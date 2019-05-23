@@ -165,9 +165,6 @@ def find_usage() -> NoReturn:
 	exit(EX_USAGE)
 
 def run_find(conn: DVRIPClient, args: List[str]) -> None:
-	from dateparser import parse as dateparse  # type: ignore
-	from humanize import naturalsize  # type: ignore
-
 	try:
 		opts, args = getopt(args, 'lhivs:e:c:')
 	except GetoptError:
@@ -175,13 +172,15 @@ def run_find(conn: DVRIPClient, args: List[str]) -> None:
 	if args:
 		find_usage()
 
-	long = human = False
+	long = False
+	size = lambda L: str(L) + 'K'
 	filetype, start, end, channel = None, None, None, None
 	for opt, arg in opts:
 		if opt == '-l':
 			long = True
 		if opt == '-h':
-			human = True
+			from humanize import naturalsize  # type: ignore
+			size = lambda L: naturalsize(L*1024, gnu=True)  # pylint:disable=cell-var-from-loop
 		if opt == '-i':
 			if filetype is not None:
 				find_usage()
@@ -191,11 +190,13 @@ def run_find(conn: DVRIPClient, args: List[str]) -> None:
 				find_usage()
 			filetype = FileType.VIDEO
 		if opt == '-s':
-			start = dateparse(arg)
+			from dateparser import parse  # type: ignore
+			start = parse(arg)
 			if start is None:
 				find_usage()
 		if opt == '-e':
-			end = dateparse(arg)
+			from dateparser import parse  # type: ignore
+			end = parse(arg)
 			if end is None:
 				find_usage()
 		if opt == '-c':
@@ -219,8 +220,7 @@ def run_find(conn: DVRIPClient, args: List[str]) -> None:
 			      .format(file.disk, file.part,
 			              file.start.isoformat(),
 			              file.end.isoformat(),
-			              naturalsize(file.length*1024, gnu=True)
-			              if human else str(file.length) + 'K',
+			              size(file.length),
 			              file.name))
 		else:
 			print(file.name)
@@ -267,12 +267,11 @@ def time_usage() -> NoReturn:
 	exit(EX_USAGE)
 
 def run_time(conn: DVRIPClient, args: List[str]) -> None:
-	from dateparser import parse as dateparse  # type: ignore
-
-	time = dateparse(args[0] if args else '1970-01-01')
-	if len(args) > 2 or time is None or time.tzinfo is not None:
-		time_usage()
-
+	if args:
+		from dateparser import parse  # type: ignore
+		time = parse(args[0])
+		if len(args) > 2 or time is None or time.tzinfo is not None:
+			time_usage()
 	print((conn.time(time) if args else conn.time()).isoformat())
 
 
