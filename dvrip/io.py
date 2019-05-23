@@ -13,8 +13,8 @@ from .login import ClientLogin, ClientLogout, Hash
 from .message import Message, Request, EPOCH, Filter, Session, Status
 from .monitor import DoMonitor, Monitor, MonitorAction, MonitorClaim, \
                      MonitorParams
-from .operation import GetTime, Machine, MachineOperation, Operation, \
-                       PerformOperation
+from .operation import DoOperation, GetTime, Machine, MachineOperation, \
+                       Operation
 from .packet import Packet
 from .playback import DoPlayback, Playback, PlaybackAction, PlaybackClaim, \
                       PlaybackParams
@@ -193,17 +193,17 @@ class DVRIPClient(DVRIPConnection):
 		if reply.gettime is NotImplemented:
 			raise DVRIPDecodeError('invalid get time reply')
 		if time is not None:
-			request = PerformOperation(command=Operation.SETTIME,
-			                           session=self.session,
-			                           settime=time)
+			request = DoOperation(command=Operation.SETTIME,
+			                      session=self.session,
+			                      settime=time)
 			self.request(request)
 		return reply.gettime
 
 	def reboot(self) -> None:
 		machine = MachineOperation(action=Machine.REBOOT)
-		request = PerformOperation(command=Operation.MACHINE,
-		                           session=self.session,
-		                           machine=machine)
+		request = DoOperation(command=Operation.MACHINE,
+		                      session=self.session,
+		                      machine=machine)
 		self.request(request)
 		self.socket.close()  # FIXME reset?
 		self.session = None

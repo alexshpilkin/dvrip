@@ -44,7 +44,7 @@ class ResetOperation(Object):
 	recording: member[bool] = member('Record')
 
 
-class PerformOperationReply(Object, Message):
+class DoOperationReply(Object, Message):
 	# pylint: disable=line-too-long
 	type = 1451
 
@@ -53,10 +53,10 @@ class PerformOperationReply(Object, Message):
 	session: member[Session]  = member('SessionID')
 
 
-class PerformOperation(Object, Request):
+class DoOperation(Object, Request):
 	# pylint: disable=line-too-long
 	type = 1450
-	reply = PerformOperationReply
+	reply = DoOperationReply
 
 	command: member[Operation] = member('Name')
 	session: member[Session]   = member('SessionID')
