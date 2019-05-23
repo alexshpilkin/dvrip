@@ -57,7 +57,7 @@ def run(host: str,
 		conn.logout()
 
 
-def main():
+def main() -> None:
 	from sys import argv
 	from . import host, serv, username, password
 

@@ -189,19 +189,6 @@ def run_find(conn: DVRIPClient, args: List[str]) -> None:
 			print(file.name)
 
 
-def time_usage() -> NoReturn:
-	print('Usage: {} time [TIME]'.format(prog_connected()), file=stderr)
-	exit(EX_USAGE)
-
-def run_time(conn: DVRIPClient, args: List[str]) -> None:
-	if args:
-		from dateparser import parse  # type: ignore
-		time = parse(args[0])
-		if len(args) > 2 or time is None or time.tzinfo is not None:
-			time_usage()
-	print((conn.time(time) if args else conn.time()).isoformat())
-
-
 def prog() -> str:
 	name = basename(argv[0])
 	return ('{} -m dvrip'.format(executable)
@@ -213,7 +200,7 @@ def prog_connected() -> str:
 
 def usage() -> NoReturn:
 	print('Usage: {} [-h HOST] [-p PORT] [-u USERNAME] COMMAND ...\n'
-	      '       COMMAND is one of find, info, reboot, or time'
+	      '       COMMAND is one of find, info, or reboot'
 	      .format(prog()),
 	      file=stderr)
 	exit(EX_USAGE)
@@ -274,15 +261,6 @@ def run(args: List[str] = argv[1:]) -> None:  # pylint: disable=dangerous-defaul
 		assert password is not None
 		conn = connect(resolve(host, port), username, password)
 		conn.reboot()
-	elif command == 'time':
-		if host is None:
-			time_usage()
-		assert password is not None
-		conn = connect(resolve(host, port), username, password)
-		try:
-			run_time(conn, args)
-		finally:
-			conn.logout()
 	else:
 		usage()
 

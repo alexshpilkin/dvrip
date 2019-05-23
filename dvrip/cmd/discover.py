@@ -40,7 +40,7 @@ def run(args: List[str]) -> None:
 		              result.tcpport, result.channels))
 
 
-def main():
+def main() -> None:
 	from sys import argv
 	from . import host
 

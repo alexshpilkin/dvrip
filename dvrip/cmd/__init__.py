@@ -3,7 +3,7 @@ from getpass import getpass
 from os import environ, execvp
 from os.path import basename
 from socket import gethostbyname, getservbyname
-from sys import executable, stderr
+from sys import stderr
 from typing import List, NoReturn, Optional
 from ..errors import DVRIPDecodeError, DVRIPRequestError
 
@@ -66,12 +66,10 @@ def usage(prog: str) -> NoReturn:  # pylint: disable=redefined-outer-name
 	exit(EX_USAGE)
 
 
-def run(prog: str, args: List[str]):  # pylint: disable=redefined-outer-name
+def run(prog: str, args: List[str]) -> None:  # pylint: disable=redefined-outer-name
 	# pylint: disable=redefined-outer-name,too-many-branches,too-many-statements
 
 	prog = basename(prog)
-	if prog in {'__main__.py', '-c'}:
-		prog = '{} -m dvrip'.format(executable)
 	environ[DVR_PROG] = prog
 	environ[DVR_PROG_CONNECT] = ('{} -h HOST [-p PORT] [-u USERNAME]'
 	                             .format(prog))
@@ -137,6 +135,6 @@ def run(prog: str, args: List[str]):  # pylint: disable=redefined-outer-name
 		osexit(e)
 
 
-def main():
+def main() -> None:
 	from sys import argv
 	run(argv[0], argv[1:])
