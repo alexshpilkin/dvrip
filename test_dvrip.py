@@ -1,6 +1,6 @@
 from datetime import datetime
 from hypothesis import given
-from hypothesis.strategies import booleans, integers, none, one_of, \
+from hypothesis.strategies import booleans, characters, integers, none, \
                                   sampled_from, text
 from io import BytesIO, RawIOBase
 from mock import Mock
@@ -15,6 +15,7 @@ from dvrip.errors import *
 from dvrip.info import *
 from dvrip.info import _json_to_version, _version_for_json, _versiontype
 from dvrip.io import *
+from dvrip.log import *
 from dvrip.login import *
 from dvrip.message import *
 from dvrip.message import _ChunkReader, _datetime_for_json, EPOCH, \
@@ -497,7 +498,7 @@ def test_version_jsonto(s):
 	assert _json_to_version('Unknown') is None
 	assert s == 'Unknown' or _json_to_version(s) == s
 
-@given(one_of(none(), text()))
+@given(none() | text())
 def test_version_forjson(s):
 	assert _version_for_json(None) == 'Unknown'
 	assert s is None or _version_for_json(s) == s
@@ -559,3 +560,60 @@ def test_mask_jsonto():
 	assert _json_to_mask('0x000FFFFF') == 20
 	assert _json_to_mask('0x0000FFFF') == 16
 	assert _json_to_mask('0x000000FF') == 8
+
+def idtext():
+	return text(alphabet=characters(blacklist_characters=',:'))
+
+@given(idtext(), idtext(), idtext())
+def test_ConnectionEntry_str(user, service, host):
+	assert (str(ConnectionEntry(user=user, service=service)) == 
+	        'user {} service {}'.format(user, service))
+	assert (str(ConnectionEntry(user=user, service=service, host=host)) == 
+	        'user {} service {} host {}'.format(user, service, host))
+
+@given(idtext(), idtext(), none() | idtext())
+def test_ConnectionEntry_repr(user, service, host):
+	assert (repr(ConnectionEntry(user=user, service=service)) ==
+	        'ConnectionEntry(user={!r}, service={!r}, host=None)'
+	        .format(user, service, host))
+	assert (repr(ConnectionEntry(user=user, service=service, host=host)) ==
+	        'ConnectionEntry(user={!r}, service={!r}, host={!r})'
+	        .format(user, service, host))
+
+@given(idtext(), idtext(), none() | idtext(),
+       idtext(), idtext(), none() | idtext())
+def test_ConnectionEntry_eq(auser, aservice, ahost, buser, bservice, bhost):
+	assert ((ConnectionEntry(user=auser, service=aservice, host=ahost) ==
+	         ConnectionEntry(user=buser, service=bservice, host=bhost)) ==
+	        (auser == buser and aservice == bservice and ahost == bhost))
+	assert ConnectionEntry(user=auser, service=aservice, host=ahost) != False
+
+@given(idtext(), idtext(), idtext())
+def test_ConnectionEntry_forjson(user, service, host):
+	assert (ConnectionEntry(user=user, service=service).for_json() ==
+	        '{},{}'.format(user, service))
+	assert (ConnectionEntry(user=user, service=service, host=host)
+	                      .for_json() ==
+	        '{},{}:{}'.format(user, service, host))
+
+@given(idtext(), idtext(), idtext())
+def test_ConnectionEntry_jsonto(user, service, host):
+	assert (ConnectionEntry.json_to('{},{}'.format(user, service)) ==
+	        ConnectionEntry(user=user, service=service))
+	assert (ConnectionEntry.json_to('{},{}:{}'
+	                               .format(user, service, host)) ==
+	        ConnectionEntry(user=user, service=service, host=host))
+	with raises(DVRIPDecodeError, match='not a valid connection entry'):
+		ConnectionEntry.json_to('admin')
+
+@given(idtext(), idtext(), none() | idtext())
+def test_ConnectionEntry_forjson_jsonto(user, service, host):
+	value = ConnectionEntry(user=user, service=service, host=host)
+	assert ConnectionEntry.json_to(value.for_json()) == value
+
+@given(idtext(), idtext(), none() | idtext())
+def test_ConnectionEntry_jsonto_forjson(user, service, host):
+	value = '{},{}'.format(user, service)
+	if host is not None:
+		value += ':' + host
+	assert ConnectionEntry.json_to(value).for_json() == value

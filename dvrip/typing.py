@@ -187,9 +187,9 @@ else:
 
 		@abstractmethod
 		def push(self,
-			 push: Callable[[str, object], None],
-			 value: _T
-			) -> None:
+		         push: Callable[[str, object], None],
+		         value: _T
+		        ) -> None:
 			pass
 
 		@abstractmethod
@@ -287,8 +287,8 @@ class member(AttributeMember[_T]):
 	def __init__(self,
 	             key:    str,
 	             conv:   Optional[Tuple[Callable[[Any], _T],
-	                                    Callable[[_T], Any]]]
-	                     = None,
+	                                    Callable[[_T], Any]]] =
+	                     None,
 	             *args:  Tuple[Callable[[Any], Any],
 	                           Callable[[Any], Any]],
 	            ) -> None:
@@ -364,7 +364,7 @@ class ObjectMeta(ABCMeta):
 
 		slots = set(namespace.get('__slots__', ()))
 		slots.add('_values_')
-		namespace['slots'] = tuple(slots)
+		namespace['__slots__'] = tuple(slots)
 
 		self = super().__new__(cls, name, bases, namespace, **kwargs)  # type: ignore
 		assert isinstance(self, ObjectMeta)
