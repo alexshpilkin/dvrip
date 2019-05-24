@@ -443,8 +443,7 @@ class ObjectMeta(ABCMeta):
 		     '\t_self_ = _cls_(\n'
 		     '{}\n'
 		     '\t)\n'
-		     '\t_end_(_datum_)\n'
-		     '\treturn _self_\n'
+		     '\treturn _end_(_self_, _datum_)\n'
 		     .format('\n'.join(reversed(tobody))),
 		     tovals)
 		self._json_to_ = tovals['_json_to_']
@@ -509,8 +508,8 @@ class Object(Value, metaclass=ObjectMeta):
 		return pop
 
 	@staticmethod
-	def _end_(datum: dict) -> None:
+	def _end_(value: _O, datum: dict) -> _O:
 		if not datum:
-			return
+			return value
 		key, _ = datum.popitem()
 		raise DVRIPDecodeError('extra member {!r}'.format(key))

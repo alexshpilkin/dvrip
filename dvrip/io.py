@@ -208,8 +208,7 @@ class DVRIPClient(DVRIPConnection):
 		self.socket.close()  # FIXME reset?
 		self.session = None
 
-	def log(self, **kwargs):
-		offset = 0
+	def log(self, *, offset=0, **kwargs):
 		while True:
 			request = GetLog(session=self.session,
 		                         logquery=LogQuery(offset=offset,
@@ -251,7 +250,7 @@ class DVRIPClient(DVRIPConnection):
 	def download(self, socket, name):
 		pb = Playback(action=PlaybackAction.DOWNLOADSTART,
 		              start=EPOCH,
-		              end=datetime(9999, 12, 31, 23, 59, 59),
+		              end=datetime(9999, 12, 31, 23, 59, 59),  # FIXME now()?
 		              params=PlaybackParams(name=name))
 		claim = PlaybackClaim(session=self.session, playback=pb)
 		request = DoPlayback(session=self.session, playback=pb)

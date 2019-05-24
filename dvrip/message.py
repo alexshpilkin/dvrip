@@ -128,7 +128,7 @@ class Session(object):
 
 
 @unique
-class Status(Enum):
+class Status(Enum):  # FIXME derive from Choice
 	__slots__ = ('code', 'success', 'message', '_value_')
 	code:    int
 	success: bool
@@ -141,6 +141,8 @@ class Status(Enum):
 		self.success = success
 		self.message = message
 		return self
+
+	# FIXME __init__
 
 	def __repr__(self) -> str:
 		return '{}({!r})'.format(type(self).__qualname__, self._value_)

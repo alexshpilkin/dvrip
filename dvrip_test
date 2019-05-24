@@ -7,7 +7,6 @@ from sys import argv, stderr
 from dvrip import DVRIP_PORT
 from dvrip.io import DVRIPClient
 from dvrip.files import FileType
-from dvrip.log import ConnectionEntry, EntryType
 from dvrip.monitor import *
 from dvrip.ptz import PTZButton
 
@@ -44,9 +43,8 @@ print(list(conn.files(start=now - timedelta(hours=5),
 entries = list(conn.log(start=now - timedelta(days=30), end=now))
 for e in entries:
 	print(e)
-	if e.type in {EntryType.LOGIN, EntryType.LOGOUT}:
-		print(ConnectionEntry.json_to(e._data))
-for p in set((e.type, e._data) for e in entries):
+	print(e.data)
+for p in set((e.type, e.data) for e in entries if isinstance(e.data, str)):
 	print(p)
 conn.button(0, PTZButton.MENU)
 

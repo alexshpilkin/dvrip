@@ -613,7 +613,74 @@ def test_ConnectionEntry_forjson_jsonto(user, service, host):
 
 @given(idtext(), idtext(), none() | idtext())
 def test_ConnectionEntry_jsonto_forjson(user, service, host):
-	value = '{},{}'.format(user, service)
+	datum = '{},{}'.format(user, service)
 	if host is not None:
-		value += ':' + host
-	assert ConnectionEntry.json_to(value).for_json() == value
+		datum += ':' + host
+	assert ConnectionEntry.json_to(datum).for_json() == datum
+
+@given(integers(), sampled_from(RecordTrigger))
+def test_RecordEntry_str(channel, trigger):
+	assert (str(RecordEntry(channel=channel, trigger=trigger)) ==
+	        'channel {} trigger {}'.format(channel, trigger.name.lower()))
+
+@given(integers(), sampled_from(RecordTrigger))
+def test_RecordEntry_repr(channel, trigger):
+	assert (repr(RecordEntry(channel=channel, trigger=trigger)) ==
+	        'RecordEntry(channel={!r}, trigger={!r})'
+	        .format(channel, trigger))
+
+@given(integers(), sampled_from(RecordTrigger),
+       integers(), sampled_from(RecordTrigger))
+def test_RecordEntry_eq(achannel, atrigger, bchannel, btrigger):
+	assert ((RecordEntry(channel=achannel, trigger=atrigger) ==
+	         RecordEntry(channel=bchannel, trigger=btrigger)) ==
+	        (achannel == bchannel and atrigger == btrigger))
+	assert RecordEntry(channel=achannel, trigger=atrigger) != False
+
+@given(integers(), sampled_from(RecordTrigger))
+def test_RecordEntry_forjson(channel, trigger):
+	assert (RecordEntry(channel=channel, trigger=trigger).for_json() ==
+	        '{},{}'.format(trigger.value, channel))
+
+@given(integers(), sampled_from(RecordTrigger))
+def test_RecordEntry_jsonto(channel, trigger):
+	assert (RecordEntry.json_to('{},{}'.format(trigger.value, channel)) ==
+	        RecordEntry(channel=channel, trigger=trigger))
+	with raises(DVRIPDecodeError, match='not a valid record entry'):
+		RecordEntry.json_to('spam')
+	with raises(DVRIPDecodeError, match='not a valid record entry'):
+		RecordEntry.json_to('spam,1,eggs')
+	with raises(DVRIPDecodeError, match='not a valid record entry'):
+		RecordEntry.json_to('MotionDetect,spam')
+
+@given(integers(), sampled_from(RecordTrigger))
+def test_RecordEntry_forjson_jsonto(channel, trigger):
+	value = RecordEntry(channel=channel, trigger=trigger)
+	assert RecordEntry.json_to(value.for_json()) == value
+
+@given(integers(), sampled_from(RecordTrigger))
+def test_RecordEntry_jsonto_forjson(channel, trigger):
+	datum = '{},{}'.format(trigger.value, channel)
+	assert RecordEntry.json_to(datum).for_json() == datum
+
+@given(sampled_from(EntryType))
+def test_EntryType_repr(value):
+	assert repr(value) == 'EntryType.{}'.format(value.name)
+
+@given(sampled_from(EntryType))
+def test_EntryType_forjson(value):
+	assert value.for_json() == value.value
+
+@given(sampled_from(EntryType))
+def test_EntryType_jsonto(value):
+	assert EntryType.json_to(value.value) == value
+	with raises(DVRIPDecodeError, match='not a known entry type'):
+		EntryType.json_to('Spam')
+
+@given(sampled_from(EntryType))
+def test_EntryType_forjson_jsonto(value):
+	assert EntryType.json_to(value.for_json()) == value
+
+@given(sampled_from(EntryType))
+def test_EntryType_jsonto_forjson(value):
+	assert EntryType.json_to(value.value).for_json() == value.value
