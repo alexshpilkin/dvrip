@@ -206,6 +206,7 @@ setup(
 			'dvr-discover = dvrip.cmd.discover:main',
 			'dvr-find = dvrip.cmd.find:main',
 			'dvr-info = dvrip.cmd.info:main',
+			'dvr-log = dvrip.cmd.log:main',
 			'dvr-reboot = dvrip.cmd.reboot:main',
 			'dvr-time = dvrip.cmd.time:main',
 		],
@@ -226,6 +227,7 @@ setup(
 	],
 	extras_require={
 		'dvr-find': ['dateparser', 'humanize'],
+		'dvr-log': ['dateparser'],
 		'dvr-time': ['dateparser'],
 	},
 	tests_require=[
