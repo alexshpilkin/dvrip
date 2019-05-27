@@ -53,13 +53,13 @@ class Hash(Enum):
 class ClientLoginReply(Object, Message):
 	type = 1001
 
-	status:   member[Status]       = member('Ret')
-	session:  member[Session]      = member('SessionID')
-	timeout:  member[int]          = member('AliveInterval')
-	channels: member[int]          = member('ChannelNum')
-	views:    member[int]          = member('ExtraChannel')
-	chassis:  member[str]          = member('DeviceType ')
-	encrypt:  optionalmember[bool] = optionalmember('DataUseAES')
+	status:    member[Status]       = member('Ret')
+	session:   member[Session]      = member('SessionID')
+	keepalive: member[int]          = member('AliveInterval')
+	channels:  member[int]          = member('ChannelNum')
+	views:     member[int]          = member('ExtraChannel')
+	chassis:   member[str]          = member('DeviceType ')
+	encrypt:   optionalmember[bool] = optionalmember('DataUseAES')
 
 
 class ClientLogin(Object, Request[ClientLoginReply]):
@@ -86,3 +86,19 @@ class ClientLogout(Object, Request[ClientLogoutReply]):
 
 	command: fixedmember     = fixedmember('Name', '')
 	session: member[Session] = member('SessionID')
+
+
+class KeepAliveReply(Object, Message):
+	type = 1007
+
+	status:  member[Status]  = member('Ret')
+	session: member[Session] = member('SessionID')
+	command: fixedmember     = fixedmember('Name', 'KeepAlive')
+
+
+class KeepAlive(Object, Request):
+	type  = 1006
+	reply = KeepAliveReply
+
+	session: member[Session] = member('SessionID')
+	command: fixedmember     = fixedmember('Name', 'KeepAlive')

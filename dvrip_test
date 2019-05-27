@@ -13,7 +13,6 @@ from dvrip.ptz import PTZButton
 
 import dvrip.packet
 
-
 def _read(file, length, _read=dvrip.packet._read):  # pylint: disable=protected-access
 	data = _read(file, length)
 	print('recv', bytes(data) if data[:1].isascii() else data.hex(),

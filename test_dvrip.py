@@ -264,7 +264,7 @@ def test_ClientLoginReply_frompackets():
 	          b'"ExtraChannel" : 0, "Ret" : 100, '
 	          b'"SessionID" : "0x00000057" }\x0A\x00']
 	m = ClientLoginReply.frompackets([Packet.load(_ChunkReader(chunks))])
-	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
+	assert (m.keepalive == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
 
@@ -282,7 +282,7 @@ def test_controlfilter_send():
 	replies = ClientLogin.replies(0)
 	assert replies.send(None) is None
 	m = replies.send(Packet.load(_ChunkReader(chunks)))
-	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
+	assert (m.keepalive == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
 	with raises(StopIteration):
@@ -303,7 +303,7 @@ def test_controlfilter_send_chunked():
 	assert replies.send(p) is None
 	assert replies.send(None) is None
 	m = replies.send(q)
-	assert (m.timeout == 21 and m.channels == 4 and m.encrypt is False and
+	assert (m.keepalive == 21 and m.channels == 4 and m.encrypt is False and
 	        m.views == 0 and m.status == Status(100) and  # pylint: disable=no-value-for-parameter
 	        m.session == Session(0x57))
 	with raises(StopIteration):
@@ -461,7 +461,7 @@ def test_Client_logout_stray(capsys, session, clinoconn, clitosrv, srvtocli):
 def test_Client_login(session, cliconn, clitosrv, srvtocli):
 	p, = (ClientLoginReply(status=Status.OK,
 	                       session=session,
-	                       timeout=21,
+	                       keepalive=21,
 	                       channels=4,
 	                       views=0,
 	                       chassis='HVR',
@@ -477,7 +477,7 @@ def test_Client_login(session, cliconn, clitosrv, srvtocli):
 def test_Client_login_invalid(session, cliconn, clitosrv, srvtocli):
 	p, = (ClientLoginReply(status=Status.ERROR,
 	                       session=session,
-	                       timeout=21,
+	                       keepalive=21,
 	                       channels=4,
 	                       views=0,
 	                       chassis='HVR',

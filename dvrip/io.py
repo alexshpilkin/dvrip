@@ -2,6 +2,7 @@ from datetime import datetime
 from io import RawIOBase
 from socket import AF_INET, SO_BROADCAST, SO_REUSEADDR, SOCK_DGRAM, \
                    socket as Socket, SOL_SOCKET, timeout as Timeout
+from time import monotonic
 from typing import Iterable, Optional, MutableSequence, TypeVar, Union
 
 from .discover import DiscoverReply, Host
@@ -9,7 +10,7 @@ from .errors import DVRIPDecodeError, DVRIPRequestError
 from .files import GetFiles, FileQuery
 from .info import ActivityInfo, GetInfo, Info, StorageInfo, SystemInfo
 from .log import GetLog, LogQuery
-from .login import ClientLogin, ClientLogout, Hash
+from .login import ClientLogin, ClientLogout, Hash, KeepAlive
 from .message import Message, Request, EPOCH, Filter, Session, Status
 from .monitor import DoMonitor, Monitor, MonitorAction, MonitorClaim, \
                      MonitorParams
@@ -111,11 +112,12 @@ class DVRIPReader(RawIOBase):
 
 
 class DVRIPClient(DVRIPConnection):
-	__slots__ = ('_logininfo',)
+	__slots__ = ('_logininfo', '_keepalive')
 
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self._logininfo = None
+		self._keepalive = None
 
 	@staticmethod
 	def discover(interface: str, timeout: float) -> Iterable[Host]:
@@ -149,6 +151,7 @@ class DVRIPClient(DVRIPConnection):
 	         ) -> None:
 		assert self.session is None
 		self.session = Session(0)
+		now = monotonic()
 		request = ClientLogin(username=username,
 		                      passhash=hash.func(password),
 		                      hash=hash,
@@ -156,11 +159,20 @@ class DVRIPClient(DVRIPConnection):
 		reply = self.request(request)
 		self.session    = reply.session
 		self._logininfo = reply
+		self._keepalive = now
 
 	def logout(self) -> None:
 		request = ClientLogout(session=self.session)
 		self.request(request)
 		self.session = None
+
+	def keepalive(self) -> None:
+		now = monotonic()
+		if now - self._keepalive < self._logininfo.keepalive:
+			return
+		request = KeepAlive(session=self.session)
+		self.request(request)
+		self._keepalive = now
 
 	def connect(self, address: Union[tuple, str], *args, **named) -> None:
 		self.socket.connect(address)
