@@ -18,16 +18,16 @@ class _mirrorproperty:
 
 def _read(file, length):
 	data = bytearray(length)
-	buf  = memoryview(data)
-	while buf:
-		buf = buf[file.readinto(buf):]
+	with memoryview(data) as buf:
+		while buf:
+			buf = buf[file.readinto(buf):]
 	return data
 
 
 def _write(file, data):
-	buf = memoryview(data)
-	while buf:
-		buf = buf[file.write(buf):]
+	with memoryview(data) as buf:
+		while buf:
+			buf = buf[file.write(buf):]
 
 
 class Packet(object):

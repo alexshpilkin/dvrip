@@ -90,13 +90,13 @@ class DVRIPReader(RawIOBase):
 		super().__init__()
 		self.conn   = conn
 		self.filter = filter
-		self.buffer = memoryview(b'')
+		self.buffer = None
 
 	def readable(self) -> bool:
 		return True
 
 	def readinto(self, buffer: MutableSequence[int]) -> int:
-		if not self.buffer:
+		if self.buffer is not None:
 			try:
 				data: Union[bytes, bytearray, memoryview] = \
 				      self.conn.recv(self.filter)
@@ -104,9 +104,13 @@ class DVRIPReader(RawIOBase):
 				return 0
 			self.buffer = memoryview(data)
 
+		assert self.buffer is not None
 		length = len(self.buffer)
 		buffer[:length] = self.buffer[:len(buffer)]
 		self.buffer     = self.buffer[len(buffer):]
+		if not self.buffer:
+			self.buffer.release()  # type: ignore
+			self.buffer = None
 		assert min(length, len(buffer))
 		return min(length, len(buffer))
 
