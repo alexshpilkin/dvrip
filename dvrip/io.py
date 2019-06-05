@@ -96,7 +96,7 @@ class DVRIPReader(RawIOBase):
 		return True
 
 	def readinto(self, buffer: MutableSequence[int]) -> int:
-		if self.buffer is not None:
+		if self.buffer is None:
 			try:
 				data: Union[bytes, bytearray, memoryview] = \
 				      self.conn.recv(self.filter)
