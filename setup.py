@@ -197,7 +197,7 @@ setup(
 		'Topic :: Utilities',
 	],
 
-	packages=['dvrip'],
+	packages=['dvrip', 'dvrip.cmd'],
 	scripts=['dvrip_test'],
 	entry_points={
 		'console_scripts': [
