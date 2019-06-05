@@ -60,7 +60,7 @@ def prog_connect() -> str:
 
 
 def usage(prog: str) -> NoReturn:  # pylint: disable=redefined-outer-name
-	print('Usage: {} [-h HOST] [-p PORT] [-u USERNAME] COMMAND ...\n'
+	print('Usage: {} [-h HOST] [-p PORT] [-u USERNAME] COMMAND ...'
 	      .format(prog),
 	      file=stderr)
 	exit(EX_USAGE)

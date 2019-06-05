@@ -11,8 +11,8 @@ Unreleased
 * The ``dvr neigh`` command is now ``dvr discover``.
 * ControlMessage and ControlRequest are now simply Message and Request,
   as there is no other kind of message or request.
-* The ``search`` module is now ``files``, and so is the corresponding
-  DVRIPClient method.
+* The ``search`` module is now named ``files``, and so is the
+  corresponding DVRIPClient method.
 * The ``dateparser`` and ``humanize`` dependencies are now only required
   when the corresponding command-line options are used.
 
