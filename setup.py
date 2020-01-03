@@ -165,7 +165,7 @@ with open('README.rst', 'r') as fp:
 	title = None
 	for line in fp:
 		if title is None:
-			title = line
+			title = line.rstrip('\n')
 		if not line[:-1]:
 			break
 	readme = ''.join(line for line in fp)
