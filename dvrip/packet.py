@@ -1,6 +1,6 @@
 from io      import BytesIO
 from struct  import Struct
-from .errors import DVRIPDecodeError
+from .errors import DVRIPDecodeError, DVRIPError
 
 __all__ = ('Packet',)
 
@@ -20,7 +20,10 @@ def _read(file, length):
 	data = bytearray(length)
 	with memoryview(data) as buf:
 		while buf:
-			buf = buf[file.readinto(buf):]
+			count = file.readinto(buf)
+			if count <= 0:
+				raise DVRIPError("Socket closed")
+			buf = buf[count:]
 	return data
 
 
